@@ -1,3 +1,5 @@
+let state = null;
+
 const printState = () => {
     log(`JS state name: ${state.name}; level: ${state.level}`);
 };

@@ -219,7 +219,7 @@ log(world.PlayerName + ' has now ' + world.NumberOfDonuts + ' donuts. Thanks, Ja
 
             var engine = new Engine();
             engine.SetValue("log", new Action<object>(Debug.Log));
-            engine.Execute("let window = this");
+            engine.Execute("let window = this;");
             engine.Execute(jsAsset.text);
             engine.Invoke("setGameState", stateAsset.text);
         }

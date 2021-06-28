@@ -1,4 +1,4 @@
-var state = {
+let state = {
     name: "Alice",
     level: 2,
 };
