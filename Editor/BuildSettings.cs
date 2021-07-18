@@ -8,5 +8,7 @@ namespace Modules.Editor
     {
         public DefaultAsset[] rawScriptRoots;
         public DefaultAsset builtScriptRoot;
+
+        public bool isDevBuild = true;
     }
 }

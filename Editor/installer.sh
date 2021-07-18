@@ -1,4 +1,4 @@
-directory = ${1}
+DIRECTORY=$1
 
-cd ${directory}
+cd ${DIRECTORY}
 npm install

@@ -15,3 +15,4 @@ MonoBehaviour:
   rawScriptRoots:
   - {fileID: 102900000, guid: 0b8eb6d0364c9504eb0222b3cb69caf7, type: 3}
   builtScriptRoot: {fileID: 102900000, guid: e1f2593f26c246fd9ddc3e39cbd785bf, type: 3}
+  isDevBuild: 1

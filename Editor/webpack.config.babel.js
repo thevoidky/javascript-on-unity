@@ -1,4 +1,4 @@
-﻿import entry from './entry.json';
+﻿import entry from './entry';
 
 module.exports = env => {
     return {
