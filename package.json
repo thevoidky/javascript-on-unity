@@ -4,7 +4,8 @@
   "displayName": "Javascript on Unity",
   "description": "Provide to bind javascripts to Unity.",
   "unity": "2021.2",
-  "gitDependencies": {
+  "dependencies": {
+    "com.unity.test-framwork": "1.1.27",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
     "jillejr.newtonsoft.json-for-unity": "https://github.com/jilleJr/Newtonsoft.Json-for-Unity.git#upm"
   },
