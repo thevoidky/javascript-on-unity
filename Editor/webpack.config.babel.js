@@ -1,4 +1,5 @@
 ﻿import entry from './entry';
+import output from './output';
 
 module.exports = env => {
     return {
@@ -8,6 +9,7 @@ module.exports = env => {
                 { test: /\.js$/, loader: 'babel-loader' }
             ]
         },
+        output: output,
         optimization: {
             minimize: env != 'dev'
         }
