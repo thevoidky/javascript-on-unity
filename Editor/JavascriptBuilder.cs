@@ -32,14 +32,18 @@ namespace Modules.Editor
         }
 
         private static string Workspace => $"{Application.dataPath}/{RootPath}";
+        private static string NodeModulesPath => $"{Workspace}/node_modules";
+        private static string InstallerPath => $"{Workspace}/installer.sh";
         private static string BuilderPath => $"{Workspace}/builder.sh";
         private static string EntryPath => $"{Workspace}/entry.json";
         private static string OutputPath => $"{Workspace}/output.json";
 
+        private static readonly Regex PathReplacer = new Regex(@"[/\\]", RegexOptions.Compiled);
+
+        private static BuildSettings _buildSettings;
+
         private Rect _rcControlArea;
         private Rect _rcButtonArea;
-
-        private BuildSettings _buildSettings;
 
         [MenuItem("Javascript on Unity/Open Javascript Builder")]
         private static void ShowWindow()
@@ -103,14 +107,45 @@ namespace Modules.Editor
         {
             using (new GUILayout.AreaScope(_rcButtonArea))
             {
-                if (GUILayout.Button("Build", GUILayout.Height(_rcButtonArea.height)))
+                if (!Directory.Exists(NodeModulesPath))
                 {
-                    Build();
+                    if (GUILayout.Button("Install npm modules", GUILayout.Height(_rcButtonArea.height)))
+                    {
+                        Install();
+                    }
+                }
+                else
+                {
+                    if (GUILayout.Button("Build", GUILayout.Height(_rcButtonArea.height)))
+                    {
+                        Build();
+                    }
                 }
             }
         }
 
-        private void Build()
+        private static void Install()
+        {
+            if (Directory.Exists(NodeModulesPath))
+            {
+                return;
+            }
+
+            var match = Regex.Match(Workspace, @"([a-zA-Z]):?[\\/](.*)");
+            var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
+            var workspace = PathReplacer
+                .Replace(match.Success ? match.Groups[2].Value : Workspace, $"{Path.DirectorySeparatorChar}")
+                .Replace(":", "");
+
+            var parameters = $"\"{workspace}\" {drive}";
+
+            var process = Process.Start(InstallerPath, parameters);
+            process?.WaitForExit();
+            
+            // AssetDatabase.Refresh();
+        }
+
+        private static void Build()
         {
             var match = Regex.Match(Workspace, @"([a-zA-Z]):?[\\/](.*)");
             var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
@@ -118,8 +153,7 @@ namespace Modules.Editor
 
             static string AssetPathToAbsolutePath(string assetPath)
             {
-                var replacer = new Regex(@"[/\\]", RegexOptions.Compiled);
-                return replacer.Replace(
+                return PathReplacer.Replace(
                     Path.Combine(Application.dataPath, Regex.Replace(assetPath, @"^Assets[/\\]", "")),
                     $"{Path.DirectorySeparatorChar}");
             }
@@ -152,7 +186,7 @@ namespace Modules.Editor
 
             GenerateMetadata();
 
-            workspace = workspace.Replace('\\', '/').Replace(":", "");
+            workspace = PathReplacer.Replace(workspace, $"{Path.DirectorySeparatorChar}").Replace(":", "");
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
             var parameters = $"\"{workspace}\" {drive} {isDevBuild}";
 
