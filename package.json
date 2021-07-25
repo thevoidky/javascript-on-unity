@@ -1,6 +1,6 @@
 {
   "name": "com.ootl.jsou",
-  "version": "0.1.0-exp",
+  "version": "0.1.0-dev",
   "displayName": "Javascript on Unity",
   "description": "Provide to bind javascripts to Unity.",
   "unity": "2021.2",
