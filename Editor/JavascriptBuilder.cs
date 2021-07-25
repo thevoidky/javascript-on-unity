@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace Modules.Editor
         private const string PackageTitle = "Javascript on Unity";
 
 #if OOTL_DEV_LOCAL
-        private const string RootPath = "Modules/javascript-on-unity/Editor";
+        private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
 #else
         private const string RootPath = "Packages/" + PackageTitle + "/Editor";
 #endif
@@ -40,9 +41,12 @@ namespace Modules.Editor
             }
         }
 
-        private static string Workspace => $"{Application.dataPath}/{RootPath}";
-        private static string NodeModulesPath => $"{Workspace}/node_modules";
+        private static string ProjectPath =>
+            Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("/Assets", StringComparison.Ordinal));
+
+        private static string Workspace => $"{ProjectPath}/{RootPath}";
 #if OOTL_DEV_LOCAL
+        private static string NodeModulesPath => $"{Workspace}/node_modules";
         private static string InstallerPath => $"{Workspace}/installer.sh";
 #endif
         private static string BuilderPath => $"{Workspace}/builder.sh";
