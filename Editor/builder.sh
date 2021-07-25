@@ -18,7 +18,7 @@ echo WORKSPACE\($WORKSPACE\) IS_DEV_BUILD\($IS_DEV_BUILD\) BUILD\($BUILD\)
 echo "Start to \"${BUILD}\" script... (package.json)"
 
 cd $DRIVE
-cd $WORKSPACE
+cd "${WORKSPACE}"
 npm run $BUILD
 
 read -p "Press enter key..."

@@ -16,11 +16,21 @@ namespace Modules.Editor
     {
         private const string Title = "Javascript Builder";
         private const string PackageTitle = "Javascript on Unity";
+        private const string PackageName = "com.ootl.jsou";
 
 #if OOTL_DEV_LOCAL
         private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
 #else
-        private const string RootPath = "Packages/" + PackageTitle + "/Editor";
+        private static string RootFullPath
+        {
+            get
+            {
+                var directories = Directory.GetDirectories($"{ProjectPath}/Library/PackageCache", $@"{PackageName}@*",
+                    SearchOption.TopDirectoryOnly);
+
+                return directories.Length == 0 ? null : $"{directories.First()}/Editor";
+            }
+        }
 #endif
 
         private static JavascriptBuilder _window = null;
@@ -46,12 +56,13 @@ namespace Modules.Editor
         private static string SettingsAssetPath => $"{LocalAssetsPath}/Editor/Build Settings.asset";
         private static string SettingsFullPath => $"{LocalAssetFullPath}/Editor/Build Settings.asset";
 
-        private static string Workspace => $"{ProjectPath}/{RootPath}";
-        private static string BuilderPath => $"{Workspace}/builder.sh";
-
 #if OOTL_DEV_LOCAL
+        private static string Workspace => $"{ProjectPath}/{RootPath}";
         private static string NodeModulesPath => $"{Workspace}/node_modules";
         private static string InstallerPath => $"{Workspace}/installer.sh";
+        private static string BuilderPath => $"{Workspace}/builder.sh";
+#else
+        private static string BuilderPath => $"{RootFullPath}/builder.sh";
 #endif
 
         private static string EntryPath => $"{LocalAssetsPath}/Editor/entry.json";
@@ -183,9 +194,15 @@ namespace Modules.Editor
 
         private static void Build()
         {
-            var match = Regex.Match(Workspace, @"([a-zA-Z]):?[\\/](.*)");
+            var workspace =
+#if OOTL_DEV_LOCAL
+                Workspace;
+#else
+                RootFullPath;
+#endif
+            var match = Regex.Match(workspace, @"([a-zA-Z]):?[\\/](.*)");
             var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
-            var workspace = match.Success ? match.Groups[2].Value : Workspace;
+            workspace = match.Success ? match.Groups[2].Value : workspace;
 
             static string AssetPathToAbsolutePath(string assetPath)
             {
@@ -224,7 +241,7 @@ namespace Modules.Editor
 
             workspace = PathReplacer.Replace(workspace, $"{Path.DirectorySeparatorChar}").Replace(":", "");
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
-            var parameters = $"\"{workspace}\" {drive} {isDevBuild}";
+            var parameters = $"'{workspace}' {drive} {isDevBuild}";
 
             Process.Start(BuilderPath, parameters);
         }
