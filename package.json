@@ -6,8 +6,8 @@
   "unity": "2021.2",
   "dependencies": {
     "com.unity.test-framework": "1.1.27",
-    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
-    "jillejr.newtonsoft.json-for-unity": "https://github.com/jilleJr/Newtonsoft.Json-for-Unity.git#upm"
+    "com.cysharp.unitask": "git+https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+    "jillejr.newtonsoft.json-for-unity": "git+https://github.com/jilleJr/Newtonsoft.Json-for-Unity.git#upm"
   },
   "keywords": [
     "ootl",
