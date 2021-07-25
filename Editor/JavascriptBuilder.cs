@@ -14,7 +14,16 @@ namespace Modules.Editor
     public class JavascriptBuilder : EditorWindow
     {
         private const string Title = "Javascript Builder";
+        private const string PackageTitle = "Javascript on Unity";
+
+#if OOTL_DEV_LOCAL
         private const string RootPath = "Modules/javascript-on-unity/Editor";
+#else
+        private const string RootPath = "Packages/" + PackageTitle + "/Editor";
+#endif
+
+        private const string LocalAssetsPath = "Assets/" + PackageTitle;
+        private const string SettingsPath = LocalAssetsPath + "/Editor/Build Settings.asset";
 
         private static JavascriptBuilder _window = null;
 
@@ -33,7 +42,9 @@ namespace Modules.Editor
 
         private static string Workspace => $"{Application.dataPath}/{RootPath}";
         private static string NodeModulesPath => $"{Workspace}/node_modules";
+#if OOTL_DEV_LOCAL
         private static string InstallerPath => $"{Workspace}/installer.sh";
+#endif
         private static string BuilderPath => $"{Workspace}/builder.sh";
         private static string EntryPath => $"{Workspace}/entry.json";
         private static string OutputPath => $"{Workspace}/output.json";
@@ -67,8 +78,18 @@ namespace Modules.Editor
 
             if (null == _buildSettings)
             {
-                _buildSettings =
-                    AssetDatabase.LoadAssetAtPath<BuildSettings>($"Assets/{RootPath}/Build Settings.asset");
+                if (!File.Exists(SettingsPath))
+                {
+                    Directory.CreateDirectory(LocalAssetsPath + "/Editor");
+
+                    var asset = CreateInstance<BuildSettings>();
+                    var assetName = AssetDatabase.GenerateUniqueAssetPath(SettingsPath);
+                    AssetDatabase.CreateAsset(asset, assetName);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+                }
+
+                _buildSettings = AssetDatabase.LoadAssetAtPath<BuildSettings>(SettingsPath);
             }
         }
 
@@ -87,19 +108,22 @@ namespace Modules.Editor
             {
                 GUILayout.Space(8f);
 
-                var so = new SerializedObject(_buildSettings);
+                if (null != _buildSettings)
+                {
+                    var so = new SerializedObject(_buildSettings);
 
-                var rawScriptRoots = new ReorderableList(so, so.FindProperty("rawScriptRoots"));
-                EditorGUILayout.PropertyField(rawScriptRoots.serializedProperty, new GUIContent("Raw Script Roots"),
-                    true);
+                    var rawScriptRoots = new ReorderableList(so, so.FindProperty("rawScriptRoots"));
+                    EditorGUILayout.PropertyField(rawScriptRoots.serializedProperty, new GUIContent("Raw Script Roots"),
+                        true);
 
-                var builtScriptRoot = so.FindProperty("builtScriptRoot");
-                EditorGUILayout.PropertyField(builtScriptRoot, new GUIContent("Built Script Root"));
+                    var builtScriptRoot = so.FindProperty("builtScriptRoot");
+                    EditorGUILayout.PropertyField(builtScriptRoot, new GUIContent("Built Script Root"));
 
-                var isDevBuild = so.FindProperty("isDevBuild");
-                EditorGUILayout.PropertyField(isDevBuild, new GUIContent("Dev Build"));
+                    var isDevBuild = so.FindProperty("isDevBuild");
+                    EditorGUILayout.PropertyField(isDevBuild, new GUIContent("Dev Build"));
 
-                so.ApplyModifiedProperties();
+                    so.ApplyModifiedProperties();
+                }
             }
         }
 
@@ -107,6 +131,7 @@ namespace Modules.Editor
         {
             using (new GUILayout.AreaScope(_rcButtonArea))
             {
+#if OOTL_DEV_LOCAL
                 if (!Directory.Exists(NodeModulesPath))
                 {
                     if (GUILayout.Button("Install npm modules", GUILayout.Height(_rcButtonArea.height)))
@@ -115,6 +140,7 @@ namespace Modules.Editor
                     }
                 }
                 else
+#endif
                 {
                     if (GUILayout.Button("Build", GUILayout.Height(_rcButtonArea.height)))
                     {
@@ -126,6 +152,7 @@ namespace Modules.Editor
 
         private static void Install()
         {
+#if OOTL_DEV_LOCAL
             if (Directory.Exists(NodeModulesPath))
             {
                 return;
@@ -141,8 +168,9 @@ namespace Modules.Editor
 
             var process = Process.Start(InstallerPath, parameters);
             process?.WaitForExit();
-            
-            // AssetDatabase.Refresh();
+
+            AssetDatabase.Refresh();
+#endif
         }
 
         private static void Build()
