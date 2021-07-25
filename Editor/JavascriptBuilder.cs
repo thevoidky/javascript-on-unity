@@ -23,9 +23,6 @@ namespace Modules.Editor
         private const string RootPath = "Packages/" + PackageTitle + "/Editor";
 #endif
 
-        private const string LocalAssetsPath = "Assets/" + PackageTitle;
-        private const string SettingsPath = LocalAssetsPath + "/Editor/Build Settings.asset";
-
         private static JavascriptBuilder _window = null;
 
         private static JavascriptBuilder Window
@@ -44,14 +41,21 @@ namespace Modules.Editor
         private static string ProjectPath =>
             Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("/Assets", StringComparison.Ordinal));
 
+        private static string LocalAssetsPath => $"Assets/{PackageTitle}";
+        private static string LocalAssetFullPath => $"{ProjectPath}/{LocalAssetsPath}";
+        private static string SettingsAssetPath => $"{LocalAssetsPath}/Editor/Build Settings.asset";
+        private static string SettingsFullPath => $"{LocalAssetFullPath}/Editor/Build Settings.asset";
+
         private static string Workspace => $"{ProjectPath}/{RootPath}";
+        private static string BuilderPath => $"{Workspace}/builder.sh";
+
 #if OOTL_DEV_LOCAL
         private static string NodeModulesPath => $"{Workspace}/node_modules";
         private static string InstallerPath => $"{Workspace}/installer.sh";
 #endif
-        private static string BuilderPath => $"{Workspace}/builder.sh";
-        private static string EntryPath => $"{Workspace}/entry.json";
-        private static string OutputPath => $"{Workspace}/output.json";
+
+        private static string EntryPath => $"{LocalAssetsPath}/Editor/entry.json";
+        private static string OutputPath => $"{LocalAssetsPath}/Editor/output.json";
 
         private static readonly Regex PathReplacer = new Regex(@"[/\\]", RegexOptions.Compiled);
 
@@ -82,18 +86,18 @@ namespace Modules.Editor
 
             if (null == _buildSettings)
             {
-                if (!File.Exists(SettingsPath))
+                if (!File.Exists(SettingsFullPath))
                 {
                     Directory.CreateDirectory(LocalAssetsPath + "/Editor");
 
                     var asset = CreateInstance<BuildSettings>();
-                    var assetName = AssetDatabase.GenerateUniqueAssetPath(SettingsPath);
+                    var assetName = AssetDatabase.GenerateUniqueAssetPath(SettingsAssetPath);
                     AssetDatabase.CreateAsset(asset, assetName);
                     AssetDatabase.SaveAssets();
                     AssetDatabase.Refresh();
                 }
 
-                _buildSettings = AssetDatabase.LoadAssetAtPath<BuildSettings>(SettingsPath);
+                _buildSettings = AssetDatabase.LoadAssetAtPath<BuildSettings>(SettingsAssetPath);
             }
         }
 

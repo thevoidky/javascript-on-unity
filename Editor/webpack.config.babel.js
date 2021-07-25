@@ -1,5 +1,5 @@
-﻿import entry from './entry';
-import output from './output';
+﻿import entry from '../../../../Assets/Javascript on Unity/Editor/entry';
+import output from '../../../../Assets/Javascript on Unity/Editor/output';
 
 module.exports = env => {
     return {
