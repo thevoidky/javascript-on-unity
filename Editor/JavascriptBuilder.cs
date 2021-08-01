@@ -1,4 +1,7 @@
-﻿using System;
+﻿// #undef OOTL_DEV_LOCAL
+
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -59,12 +62,41 @@ namespace Modules.Editor
 
 #if OOTL_DEV_LOCAL
         private static string Workspace => $"{ProjectPath}/{RootPath}";
-        private static string NodeModulesPath => $"{Workspace}/node_modules";
-        private static string InstallerPath => $"{Workspace}/installer.sh";
-        private static string BuilderPath => $"{Workspace}/builder.sh";
+        private static string NodeModulesParentPath => Workspace;
+        private static string SourceInstallerPath => $"{Workspace}/installer.sh";
+        private static string SourceBuilderPath => $"{Workspace}/builder.sh";
+        private static string InstallerPath => $"{NodeModulesParentPath}/installer.sh";
+        private static string BuilderPath => $"{NodeModulesParentPath}/builder.sh";
+        private static IEnumerable<string> FilesToCopy => new[]
+        {
+            SourceInstallerPath,
+            SourceBuilderPath,
+            $"{Workspace}/package.json",
+            $"{Workspace}/package-lock.json",
+            $"{Workspace}/webpack.config.babel.js",
+            $"{Workspace}/.babelrc",
+        };
 #else
-        private static string BuilderPath => $"{RootFullPath}/builder.sh";
+        private static string SourceInstallerPath => $"{RootFullPath}/installer.sh";
+        private static string SourceBuilderPath => $"{RootFullPath}/builder.sh";
+        private static string InstallerPath => $"{NodeModulesParentPath}/installer.sh";
+        private static string BuilderPath => $"{NodeModulesParentPath}/builder.sh";
+        private static IEnumerable<string> FilesToCopy => new[]
+        {
+            SourceInstallerPath,
+            SourceBuilderPath,
+            $"{RootFullPath}/package.json",
+            $"{RootFullPath}/package-lock.json",
+            $"{RootFullPath}/webpack.config.babel.js",
+            $"{RootFullPath}/.babelrc",
+        };
 #endif
+        private static string NodeModulesPath => $"{RawScriptPath}/node_modules";
+
+        private static string RawScriptPath =>
+            !RawScriptRoot
+                ? string.Empty
+                : $"{ProjectPath}/{AssetDatabase.GetAssetPath(RawScriptRoot)}";
 
         private static string EntryPath => $"{LocalAssetsPath}/Editor/entry.json";
         private static string OutputPath => $"{LocalAssetsPath}/Editor/output.json";
@@ -76,11 +108,35 @@ namespace Modules.Editor
         private Rect _rcControlArea;
         private Rect _rcButtonArea;
 
-        public static DefaultAsset[] RawScriptRoots
+        public static DefaultAsset RawScriptRoot
         {
-            get => _buildSettings.rawScriptRoots;
+            get => _buildSettings.rawScriptRoot;
             set
             {
+                var so = new SerializedObject(_buildSettings);
+                var builtScriptRoot = so.FindProperty("rawScriptRoot");
+
+                if (value == null)
+                {
+                    builtScriptRoot.objectReferenceValue = value;
+                    so.ApplyModifiedProperties();
+                    AssetDatabase.SaveAssets();
+                    return;
+                }
+
+                var path = AssetDatabase.GetAssetPath(value);
+                var fullPath = Path.Combine(ProjectPath, path);
+                if (!Directory.Exists(fullPath))
+                {
+                    Debug.LogError($"Input directory is not exist. ({value.name})");
+                    return;
+                }
+
+                builtScriptRoot.objectReferenceValue = value;
+                so.ApplyModifiedProperties();
+                AssetDatabase.SaveAssets();
+
+                /*
                 var so = new SerializedObject(_buildSettings);
 
                 var rawScriptRoots = new ReorderableList(so, so.FindProperty("rawScriptRoots"));
@@ -113,6 +169,7 @@ namespace Modules.Editor
 
                 so.ApplyModifiedProperties();
                 AssetDatabase.SaveAssets();
+                */
             }
         }
 
@@ -160,6 +217,34 @@ namespace Modules.Editor
             }
         }
 
+        private static void Install()
+        {
+            if (Directory.Exists(NodeModulesPath))
+            {
+                return;
+            }
+
+            var match = Regex.Match(NodeModulesParentPath, @"([a-zA-Z]):?[\\/](.*)");
+            var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
+            var workspace = PathReplacer
+                .Replace(match.Success ? match.Groups[2].Value : NodeModulesParentPath,
+                    $"{Path.DirectorySeparatorChar}")
+                .Replace(":", "");
+
+            foreach (var path in FilesToCopy)
+            {
+                var filename = Path.GetFileName(path);
+                File.Copy(path, Path.Combine(NodeModulesParentPath, filename));
+            }
+
+            var parameters = $"\"{workspace}\" {drive}";
+
+            var process = Process.Start(InstallerPath, parameters);
+            process?.WaitForExit();
+
+            AssetDatabase.Refresh();
+        }
+
         public static void Build()
         {
             var workspace =
@@ -181,10 +266,10 @@ namespace Modules.Editor
 
             void GenerateMetadata()
             {
-                var rawScriptPaths = _buildSettings.rawScriptRoots
-                    .SelectMany(defaultAsset =>
-                        Directory.GetFiles(AssetPathToAbsolutePath(AssetDatabase.GetAssetPath(defaultAsset)), @"*.js",
-                            SearchOption.AllDirectories));
+                var rawScriptPaths =
+                    Directory.GetFiles(
+                            AssetPathToAbsolutePath(RawScriptPath), @"*.js", SearchOption.AllDirectories)
+                        .Where(path => !path.StartsWith(NodeModulesPath));
 
                 var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptRoot);
 
@@ -270,9 +355,14 @@ namespace Modules.Editor
                 {
                     var so = new SerializedObject(_buildSettings);
 
+                    /*
                     var rawScriptRoots = new ReorderableList(so, so.FindProperty("rawScriptRoots"));
                     EditorGUILayout.PropertyField(rawScriptRoots.serializedProperty, new GUIContent("Raw Script Roots"),
                         true);
+                    */
+
+                    var rawScriptRoot = so.FindProperty("rawScriptRoot");
+                    EditorGUILayout.PropertyField(rawScriptRoot, new GUIContent("Raw Script Root"));
 
                     var builtScriptRoot = so.FindProperty("builtScriptRoot");
                     EditorGUILayout.PropertyField(builtScriptRoot, new GUIContent("Built Script Root"));
@@ -289,7 +379,6 @@ namespace Modules.Editor
         {
             using (new GUILayout.AreaScope(_rcButtonArea))
             {
-#if OOTL_DEV_LOCAL
                 if (!Directory.Exists(NodeModulesPath))
                 {
                     if (GUILayout.Button("Install npm modules", GUILayout.Height(_rcButtonArea.height)))
@@ -298,7 +387,6 @@ namespace Modules.Editor
                     }
                 }
                 else
-#endif
                 {
                     if (GUILayout.Button("Build", GUILayout.Height(_rcButtonArea.height)))
                     {
@@ -306,29 +394,6 @@ namespace Modules.Editor
                     }
                 }
             }
-        }
-
-        private static void Install()
-        {
-#if OOTL_DEV_LOCAL
-            if (Directory.Exists(NodeModulesPath))
-            {
-                return;
-            }
-
-            var match = Regex.Match(Workspace, @"([a-zA-Z]):?[\\/](.*)");
-            var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
-            var workspace = PathReplacer
-                .Replace(match.Success ? match.Groups[2].Value : Workspace, $"{Path.DirectorySeparatorChar}")
-                .Replace(":", "");
-
-            var parameters = $"\"{workspace}\" {drive}";
-
-            var process = Process.Start(InstallerPath, parameters);
-            process?.WaitForExit();
-
-            AssetDatabase.Refresh();
-#endif
         }
     }
 }
