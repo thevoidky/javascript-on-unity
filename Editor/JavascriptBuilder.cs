@@ -62,7 +62,6 @@ namespace Modules.Editor
 
 #if OOTL_DEV_LOCAL
         private static string Workspace => $"{ProjectPath}/{RootPath}";
-        private static string NodeModulesParentPath => Workspace;
         private static string SourceInstallerPath => $"{Workspace}/installer.sh";
         private static string SourceBuilderPath => $"{Workspace}/builder.sh";
         private static string InstallerPath => $"{NodeModulesParentPath}/installer.sh";
@@ -91,17 +90,21 @@ namespace Modules.Editor
             $"{RootFullPath}/.babelrc",
         };
 #endif
-        private static string NodeModulesPath => $"{RawScriptPath}/node_modules";
+        private static string NodeModulesParentPath => RawScriptPath;
+        private static string NodeModulesPath => ReplacePath($"{NodeModulesParentPath}/node_modules");
 
         private static string RawScriptPath =>
             !RawScriptRoot
                 ? string.Empty
-                : $"{ProjectPath}/{AssetDatabase.GetAssetPath(RawScriptRoot)}";
+                : ReplacePath($"{ProjectPath}/{AssetDatabase.GetAssetPath(RawScriptRoot)}");
 
-        private static string EntryPath => $"{LocalAssetsPath}/Editor/entry.json";
-        private static string OutputPath => $"{LocalAssetsPath}/Editor/output.json";
+        private static string EntryPath => ReplacePath($"{NodeModulesParentPath}/entry.json");
+        private static string OutputPath => ReplacePath($"{NodeModulesParentPath}/output.json");
 
         private static readonly Regex PathReplacer = new Regex(@"[/\\]", RegexOptions.Compiled);
+
+        private static string ReplacePath(string path) =>
+            PathReplacer.Replace(path, Path.DirectorySeparatorChar.ToString());
 
         private static BuildSettings _buildSettings;
 
@@ -234,6 +237,12 @@ namespace Modules.Editor
             foreach (var path in FilesToCopy)
             {
                 var filename = Path.GetFileName(path);
+                var combinedPath = Path.Combine(NodeModulesParentPath, filename);
+                if (File.Exists(combinedPath))
+                {
+                    File.Delete(combinedPath);
+                }
+
                 File.Copy(path, Path.Combine(NodeModulesParentPath, filename));
             }
 
@@ -247,29 +256,19 @@ namespace Modules.Editor
 
         public static void Build()
         {
-            var workspace =
-#if OOTL_DEV_LOCAL
-                Workspace;
-#else
-                RootFullPath;
-#endif
-            var match = Regex.Match(workspace, @"([a-zA-Z]):?[\\/](.*)");
-            var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
-            workspace = match.Success ? match.Groups[2].Value : workspace;
-
             static string AssetPathToAbsolutePath(string assetPath)
             {
-                return PathReplacer.Replace(
-                    Path.Combine(Application.dataPath, Regex.Replace(assetPath, @"^Assets[/\\]", "")),
-                    $"{Path.DirectorySeparatorChar}");
+                return ReplacePath(Path.Combine(Application.dataPath, Regex.Replace(assetPath, @"^Assets[/\\]", "")));
             }
 
             void GenerateMetadata()
             {
+                var absolutePath = AssetPathToAbsolutePath(RawScriptPath);
                 var rawScriptPaths =
-                    Directory.GetFiles(
-                            AssetPathToAbsolutePath(RawScriptPath), @"*.js", SearchOption.AllDirectories)
-                        .Where(path => !path.StartsWith(NodeModulesPath));
+                    Directory.GetFiles(absolutePath, @"*.js", SearchOption.AllDirectories)
+                        .Where(path => !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js"))
+                        .Select(path => Regex.Replace(path, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
+                            $".{Path.DirectorySeparatorChar}"));
 
                 var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptRoot);
 
@@ -292,7 +291,13 @@ namespace Modules.Editor
 
             GenerateMetadata();
 
-            workspace = PathReplacer.Replace(workspace, $"{Path.DirectorySeparatorChar}").Replace(":", "");
+            var match = Regex.Match(NodeModulesParentPath, @"([a-zA-Z]):?[\\/](.*)");
+            var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
+            var workspace = PathReplacer
+                .Replace(match.Success ? match.Groups[2].Value : NodeModulesParentPath,
+                    $"{Path.DirectorySeparatorChar}")
+                .Replace(":", "");
+
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
             var parameters = $"'{workspace}' {drive} {isDevBuild}";
 
