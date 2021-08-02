@@ -23,6 +23,7 @@ namespace Modules.Editor
 #if OOTL_DEV_LOCAL
         private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
 #else
+        private const string PackageName = "com.ootl.jsou";
         private static string RootFullPath
         {
             get
