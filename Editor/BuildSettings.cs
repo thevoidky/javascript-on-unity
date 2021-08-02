@@ -8,7 +8,9 @@ namespace Modules.Editor
     {
         public DefaultAsset rawScriptRoot;
         public DefaultAsset builtScriptRoot;
-
         public bool isDevBuild = true;
+
+        public DefaultAsset generatedHelpersRoot;
+        public MonoScript[] engines;
     }
 }
