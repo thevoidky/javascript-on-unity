@@ -20,6 +20,8 @@ namespace Modules.Editor
         private const string Title = "Javascript Builder";
         private const string PackageTitle = "Javascript on Unity";
 
+        private const string ClassHeader = "__class_";
+
 #if OOTL_DEV_LOCAL
         private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
 #else
@@ -35,6 +37,10 @@ namespace Modules.Editor
             }
         }
 #endif
+
+        private static readonly Regex Comment = new Regex(
+            @"(^[\s]*(?:import |(?:(?:const|let|var).*require\()).*['""`](?:.+[/\\])*([.][^./\\]+?)['""`])",
+            RegexOptions.Compiled | RegexOptions.Multiline);
 
         private static JavascriptBuilder _window = null;
 
@@ -52,7 +58,8 @@ namespace Modules.Editor
         }
 
         private static string ProjectPath =>
-            Application.dataPath.Substring(0, Application.dataPath.LastIndexOf("/Assets", StringComparison.Ordinal));
+            ReplacePath(Application.dataPath.Substring(0,
+                Application.dataPath.LastIndexOf("/Assets", StringComparison.Ordinal)));
 
         private static string LocalAssetsPath => $"Assets/{PackageTitle}";
         private static string LocalAssetFullPath => $"{ProjectPath}/{LocalAssetsPath}";
@@ -93,12 +100,13 @@ namespace Modules.Editor
         private static string RawScriptPath =>
             !RawScriptRoot
                 ? string.Empty
-                : ReplacePath($"{ProjectPath}/{AssetDatabase.GetAssetPath(RawScriptRoot)}");
+                : ReplacePath($"{ProjectPath}{Path.DirectorySeparatorChar}{AssetDatabase.GetAssetPath(RawScriptRoot)}");
 
         private static string GeneratedHelpersPath =>
             !GeneratedHelpersRoot
                 ? string.Empty
-                : ReplacePath($"{ProjectPath}/{AssetDatabase.GetAssetPath(GeneratedHelpersRoot)}");
+                : ReplacePath(
+                    $"{ProjectPath}{Path.DirectorySeparatorChar}{AssetDatabase.GetAssetPath(GeneratedHelpersRoot)}");
 
         private static string EntryPath => ReplacePath($"{NodeModulesParentPath}/entry.json");
         private static string OutputPath => ReplacePath($"{NodeModulesParentPath}/output.json");
@@ -347,12 +355,15 @@ namespace Modules.Editor
                 return ReplacePath(Path.Combine(Application.dataPath, Regex.Replace(assetPath, @"^Assets[/\\]", "")));
             }
 
+            var rawScriptFullPaths = new List<string>();
+
             void GenerateMetadata()
             {
                 var absolutePath = AssetPathToAbsolutePath(RawScriptPath);
+                rawScriptFullPaths.AddRange(Directory.GetFiles(absolutePath, @"*.js", SearchOption.AllDirectories)
+                    .Where(path => !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js")));
                 var rawScriptPaths =
-                    Directory.GetFiles(absolutePath, @"*.js", SearchOption.AllDirectories)
-                        .Where(path => !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js"))
+                    rawScriptFullPaths
                         .Select(path => Regex.Replace(path, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
                             $".{Path.DirectorySeparatorChar}"));
 
@@ -375,7 +386,18 @@ namespace Modules.Editor
                 File.WriteAllText(EntryPath, entryContent, Encoding.UTF8);
             }
 
+            void Comment()
+            {
+                foreach (var path in rawScriptFullPaths)
+                {
+                    var javascript = File.ReadAllText(path);
+                    javascript = JavascriptBuilder.Comment.Replace(javascript, "// $1");
+                    File.WriteAllText(path, javascript);
+                }
+            }
+
             GenerateMetadata();
+            Comment();
 
             var match = Regex.Match(NodeModulesParentPath, @"([a-zA-Z]):?[\\/](.*)");
             var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
@@ -392,106 +414,320 @@ namespace Modules.Editor
 
         public static void Generate()
         {
-            static bool IsValidType(Type t) => t == typeof(int) || t == typeof(long) || t == typeof(float) ||
-                                               t == typeof(double) || t == typeof(bool) || t == typeof(string) ||
-                                               t == typeof(void);
-
-            static string TypeToPrefix(Type t)
-            {
-                if (t == typeof(int) || t == typeof(long) || t == typeof(float) || t == typeof(double))
-                {
-                    return "number_";
-                }
-                else if (t == typeof(bool))
-                {
-                    return "boolean_";
-                }
-                else if (t == typeof(string))
-                {
-                    return "string_";
-                }
-
-                throw new Exception($"Incompatible type - {t}");
-            }
-
             var types = Engines
                 .Select(engine => engine.GetClass())
-                .Where(type => type != null && Activator.CreateInstance(type) is JavascriptEngine);
+                .Where(type => type != null && type.IsSubclassOf(typeof(JavascriptEngine)));
+
+            var boundTypesToImportPaths = new Dictionary<Type, string>();
 
             foreach (var type in types)
             {
                 try
                 {
-                    var temporaryInstance = Activator.CreateInstance(type);
-                    var members = type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                    var javascript = new StringBuilder("module.exports = {\n");
+                    var temporaryInstance = Activator.CreateInstance(type) as JavascriptEngine;
+                    if (temporaryInstance == null)
+                    {
+                        continue;
+                    }
 
-                    var lines = members
-                        .Where(member => member switch
+                    var engineDirectory =
+                        $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{type.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
+                    var engineFilename = $".{type.Name}.js";
+                    var engineFullPath = $"{engineDirectory}{Path.DirectorySeparatorChar}{engineFilename}";
+
+                    {
+                        var typesToBind = temporaryInstance.TypesToBind;
+                        var tuples = typesToBind
+                            .Where(t => !boundTypesToImportPaths.ContainsKey(t))
+                            .Select(t => (t, SerializeClass(t, typesToBind)));
+
+                        foreach (var (t, javascript) in tuples)
                         {
-                            PropertyInfo prop => prop.CanWrite && prop.CanRead && IsValidType(prop.PropertyType),
-                            MethodInfo method => !method.IsSpecialName &&
-                                                 (method.GetParameters().Length <= 0 || method.GetParameters()
-                                                     .Any(parameterInfo => IsValidType(parameterInfo.ParameterType))) &&
-                                                 IsValidType(method.ReturnType),
-                            _ => false
-                        })
-                        .Select(member =>
-                        {
-                            switch (member)
+                            var directory =
+                                $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{t.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
+                            var filename = $".{t.Name}.js";
+                            var fullPath = $"{directory}{Path.DirectorySeparatorChar}{filename}";
+
+                            var equalIndex = engineFullPath.Aggregate(0, (index, ch) =>
                             {
-                                case PropertyInfo prop:
-                                    return $@"{prop.Name}: {prop.GetValue(temporaryInstance)},";
-
-                                case MethodInfo method:
+                                if (index >= fullPath.Length || fullPath[index] != ch)
                                 {
-                                    var methodBuilder = new StringBuilder($@"{method.Name}: function(");
-                                    foreach (var parameterInfo in method.GetParameters())
-                                    {
-                                        methodBuilder.Append(
-                                            $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
-                                    }
-
-                                    methodBuilder.Append("){},");
-                                    return methodBuilder.ToString();
+                                    return index;
                                 }
 
-                                default:
-                                    return string.Empty;
-                            }
-                        });
+                                return index + 1;
+                            });
 
-                    foreach (var line in lines)
+                            var equalPathLength = engineFullPath.Substring(0, equalIndex)
+                                .LastIndexOf(Path.DirectorySeparatorChar) + 1;
+                            var differentEnginePath = engineFullPath.Substring(equalPathLength,
+                                engineFullPath.Length - equalPathLength);
+                            var differentClassPath =
+                                fullPath.Substring(equalPathLength, fullPath.Length - equalPathLength);
+
+                            var depthCount = differentEnginePath.Aggregate(0,
+                                (count, ch) => count + ch == Path.DirectorySeparatorChar ? 1 : 0);
+
+                            var relativePathBuilder = new StringBuilder("./");
+                            for (var i = 0; i < depthCount; ++i)
+                            {
+                                relativePathBuilder.Append("../");
+                            }
+
+                            relativePathBuilder.Append(differentClassPath);
+
+                            boundTypesToImportPaths.Add(t, relativePathBuilder.ToString());
+
+                            File.WriteAllText(fullPath, javascript, Encoding.UTF8);
+
+                            Debug.Log($"Succeeded to create helper \"{fullPath}\"");
+                        }
+                    }
+
                     {
-                        if (string.IsNullOrEmpty(line))
+                        var imports = string.Join("\r\n", temporaryInstance.TypesToBind
+                            .Where(boundTypesToImportPaths.ContainsKey)
+                            .Select(boundType => $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"));
+
+                        var engineJs = $"{imports}\r\n\r\n{SerializeEngine(type)}";
+
+                        if (!File.Exists(engineFullPath) && !Directory.Exists(engineDirectory))
                         {
-                            continue;
+                            Directory.CreateDirectory(engineDirectory);
                         }
 
-                        javascript.AppendLine(line);
+                        File.WriteAllText(engineFullPath, engineJs, Encoding.UTF8);
+
+                        Debug.Log($"Succeeded to create helper \"{engineFullPath}\"");
                     }
-
-                    javascript.AppendLine("};");
-
-                    var directory =
-                        $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{type.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
-                    var filename = $".{type.Name}.js";
-                    var fullPath = $"{directory}{Path.DirectorySeparatorChar}{filename}";
-
-                    if (!File.Exists(fullPath) && !Directory.Exists(directory))
-                    {
-                        Directory.CreateDirectory(directory);
-                    }
-
-                    File.WriteAllText(fullPath, javascript.ToString(), Encoding.UTF8);
-                    
-                    Debug.Log($"Succeeded to create helper \"{fullPath}\"");
                 }
                 catch (Exception e)
                 {
                     Debug.LogError(e);
                     throw;
                 }
+            }
+        }
+
+        private static bool IsValidType(Type t) => // boolean
+            t == typeof(bool) ||
+            // number
+            t == typeof(int) || t == typeof(long) ||
+            t == typeof(float) || t == typeof(double) || t == typeof(decimal) ||
+            // string
+            t == typeof(string) ||
+            // ***void*** return type only
+            t == typeof(void) ||
+            // class
+            (t.IsClass && !t.IsSubclassOf(typeof(MonoBehaviour)) && !t.IsSubclassOf(typeof(JavascriptEngine)));
+
+        private static string TypeToPrefix(Type t) => $"{(t.IsValueType ? t.Name.ToLower() : t.Name)}_";
+
+        private static string SerializeClass(Type type, ICollection<Type> typesToBind)
+        {
+            if (!type.IsClass)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                bool IsValidTypeWithBind(Type t) => IsValidType(t) || typesToBind.Contains(t);
+
+                var members =
+                    type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                var constructorInfos =
+                    type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                var javascript = new StringBuilder($"export class {type.Name} {{\r\n");
+
+                var constructors = constructorInfos
+                    .Select(constructorInfo =>
+                    {
+                        var parameterInfos = constructorInfo.GetParameters();
+                        var parameters = parameterInfos.Select(parameterInfo =>
+                            $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+
+                        return $"constructor({string.Join(",", parameters)}) {{}}";
+                    });
+
+                foreach (var ctor in constructors)
+                {
+                    if (string.IsNullOrEmpty(ctor))
+                    {
+                        continue;
+                    }
+
+                    javascript.AppendLine(ctor);
+                }
+
+                var lines = members
+                    .Where(member => member switch
+                    {
+                        PropertyInfo prop => prop.CanWrite && prop.CanRead && IsValidTypeWithBind(prop.PropertyType),
+                        MethodInfo method => !method.IsSpecialName &&
+                                             (method.GetParameters().Length <= 0 || method.GetParameters()
+                                                 .All(parameterInfo =>
+                                                     IsValidTypeWithBind(parameterInfo.ParameterType))) &&
+                                             IsValidTypeWithBind(method.ReturnType),
+                        _ => false
+                    })
+                    .Select(member =>
+                    {
+                        switch (member)
+                        {
+                            case PropertyInfo prop:
+                                return $@"{prop.Name} = {Activator.CreateInstance(prop.PropertyType)};";
+
+                            case MethodInfo method:
+                            {
+                                var methodBuilder = new StringBuilder($@"{method.Name}(");
+                                foreach (var parameterInfo in method.GetParameters())
+                                {
+                                    methodBuilder.Append(
+                                        $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+                                }
+
+                                var returnValue = method.ReturnType == typeof(void)
+                                    ? string.Empty
+                                    : method.ReturnType.IsValueType
+                                        ? Activator.CreateInstance(method.ReturnType).ToString()
+                                        : $"new {method.ReturnType.Name}()";
+
+                                methodBuilder.Append(
+                                    $") {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
+                                return methodBuilder.ToString();
+                            }
+
+                            default:
+                                return string.Empty;
+                        }
+                    });
+
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrEmpty(line))
+                    {
+                        continue;
+                    }
+
+                    javascript.AppendLine(line);
+                }
+
+                javascript.AppendLine("}");
+
+                return javascript.ToString();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+                throw;
+            }
+        }
+
+        private static string SerializeEngine(Type type)
+        {
+            if (!type.IsClass)
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                if (!(Activator.CreateInstance(type) is JavascriptEngine temporaryInstance))
+                {
+                    return string.Empty;
+                }
+
+                var typesToBind = temporaryInstance.TypesToBind;
+                bool IsValidTypeWithBind(Type t) => IsValidType(t) || typesToBind.Contains(t);
+
+                var members =
+                    type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                var constructorInfos =
+                    type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                var javascript = new StringBuilder($"class {ClassHeader}{type.Name} {{\r\n");
+
+                var constructors = constructorInfos
+                    .Select(constructorInfo =>
+                    {
+                        var parameterInfos = constructorInfo.GetParameters();
+                        var parameters = parameterInfos.Select(parameterInfo =>
+                            $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+
+                        return $"constructor({string.Join(",", parameters)}) {{}}";
+                    });
+
+                foreach (var ctor in constructors)
+                {
+                    if (string.IsNullOrEmpty(ctor))
+                    {
+                        continue;
+                    }
+
+                    javascript.AppendLine(ctor);
+                }
+
+                var lines = members
+                    .Where(member => member switch
+                    {
+                        PropertyInfo prop => prop.CanWrite && prop.CanRead && IsValidTypeWithBind(prop.PropertyType),
+                        MethodInfo method => !method.IsSpecialName &&
+                                             (method.GetParameters().Length <= 0 || method.GetParameters()
+                                                 .All(parameterInfo =>
+                                                     IsValidTypeWithBind(parameterInfo.ParameterType))) &&
+                                             IsValidTypeWithBind(method.ReturnType),
+                        _ => false
+                    })
+                    .Select(member =>
+                    {
+                        switch (member)
+                        {
+                            case PropertyInfo prop:
+                                return $@"{prop.Name} = {prop.GetValue(temporaryInstance)};";
+
+                            case MethodInfo method:
+                            {
+                                var methodBuilder = new StringBuilder($@"{method.Name}(");
+                                foreach (var parameterInfo in method.GetParameters())
+                                {
+                                    methodBuilder.Append(
+                                        $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+                                }
+
+                                var returnValue = method.ReturnType == typeof(void)
+                                    ? string.Empty
+                                    : method.ReturnType.IsValueType
+                                        ? Activator.CreateInstance(method.ReturnType).ToString()
+                                        : $"new {method.ReturnType.Name}()";
+
+                                methodBuilder.Append(
+                                    $") {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
+                                return methodBuilder.ToString();
+                            }
+
+                            default:
+                                return string.Empty;
+                        }
+                    });
+
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrEmpty(line))
+                    {
+                        continue;
+                    }
+
+                    javascript.AppendLine(line);
+                }
+
+                javascript.AppendLine($"}}\r\n\r\nexport const {type.Name} = new {ClassHeader}{type.Name}();");
+
+                return javascript.ToString();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+                throw;
             }
         }
 
