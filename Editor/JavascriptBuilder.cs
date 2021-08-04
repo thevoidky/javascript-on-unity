@@ -369,18 +369,12 @@ namespace Modules.Editor
 
                 var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptRoot);
 
-                var output = new Dictionary<string, string>();
-                output.Add("path", AssetPathToAbsolutePath(builtScriptRoot));
+                var output = new Dictionary<string, string> {{"path", AssetPathToAbsolutePath(builtScriptRoot)}};
 
                 var outputContent = JsonConvert.SerializeObject(output);
                 File.WriteAllText(OutputPath, outputContent);
 
-                var entry = new Dictionary<string, string>();
-                foreach (var scriptPath in rawScriptPaths)
-                {
-                    var filename = Path.GetFileName(scriptPath);
-                    entry.Add(Path.GetFileNameWithoutExtension(filename), scriptPath);
-                }
+                var entry = rawScriptPaths.ToDictionary(scriptPath => Regex.Replace(scriptPath, @".js$", ""));
 
                 var entryContent = JsonConvert.SerializeObject(entry);
                 File.WriteAllText(EntryPath, entryContent, Encoding.UTF8);
@@ -487,7 +481,8 @@ namespace Modules.Editor
                     {
                         var imports = string.Join("\r\n", temporaryInstance.TypesToBind
                             .Where(boundTypesToImportPaths.ContainsKey)
-                            .Select(boundType => $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"));
+                            .Select(boundType =>
+                                $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"));
 
                         var engineJs = $"{imports}\r\n\r\n{SerializeEngine(type)}";
 
@@ -720,7 +715,7 @@ namespace Modules.Editor
                     javascript.AppendLine(line);
                 }
 
-                javascript.AppendLine($"}}\r\n\r\nexport const {type.Name} = new {ClassHeader}{type.Name}();");
+                javascript.AppendLine($"}}\r\n\r\nexport const window = new {ClassHeader}{type.Name}();");
 
                 return javascript.ToString();
             }
