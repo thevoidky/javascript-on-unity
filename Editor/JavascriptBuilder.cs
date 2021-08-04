@@ -472,6 +472,11 @@ namespace Modules.Editor
 
                             boundTypesToImportPaths.Add(t, relativePathBuilder.ToString());
 
+                            if (!File.Exists(fullPath) && !Directory.Exists(directory))
+                            {
+                                Directory.CreateDirectory(directory);
+                            }
+
                             File.WriteAllText(fullPath, javascript, Encoding.UTF8);
 
                             Debug.Log($"Succeeded to create helper \"{fullPath}\"");
