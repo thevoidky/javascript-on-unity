@@ -42,6 +42,10 @@ namespace Modules.Editor
             @"(^[\s]*(?:import |(?:(?:const|let|var).*require\()).*['""`](?:.+[/\\])*([.][^./\\]+?)['""`])",
             RegexOptions.Compiled | RegexOptions.Multiline);
 
+        private static readonly Regex Uncomment = new Regex(
+            @"^// ([\s]*(?:import |(?:(?:const|let|var).*require\()).*['""`](?:.+[/\\])*([.][^./\\]+?)['""`])",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+
         private static JavascriptBuilder _window = null;
 
         private static JavascriptBuilder Window
@@ -390,6 +394,16 @@ namespace Modules.Editor
                 }
             }
 
+            void Uncomment()
+            {
+                foreach (var path in rawScriptFullPaths)
+                {
+                    var javascript = File.ReadAllText(path);
+                    javascript = JavascriptBuilder.Uncomment.Replace(javascript, "$1");
+                    File.WriteAllText(path, javascript);
+                }
+            }
+
             GenerateMetadata();
             Comment();
 
@@ -403,7 +417,17 @@ namespace Modules.Editor
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
             var parameters = $"'{workspace}' {drive} {isDevBuild}";
 
-            Process.Start(BuilderPath, parameters);
+            var process = Process.Start(BuilderPath, parameters);
+            if (process == null)
+            {
+                Debug.LogError($"Failed to start a process.\nPath: {BuilderPath}\nArguments: {parameters})");
+                return;
+            }
+
+            // Wait for an hour
+            process.WaitForExit(3600000);
+
+            Uncomment();
         }
 
         public static void Generate()
@@ -536,10 +560,10 @@ namespace Modules.Editor
 
                 var members =
                     type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                var constructorInfos =
-                    type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
                 var javascript = new StringBuilder($"export class {type.Name} {{\r\n");
 
+                var constructorInfos =
+                    type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
                 var constructors = constructorInfos
                     .Select(constructorInfo =>
                     {
@@ -576,7 +600,8 @@ namespace Modules.Editor
                         switch (member)
                         {
                             case PropertyInfo prop:
-                                return $@"{prop.Name} = {Activator.CreateInstance(prop.PropertyType)};";
+                                return
+                                    $@"{prop.Name} = {(prop.PropertyType == typeof(string) ? "''" : Activator.CreateInstance(prop.PropertyType))};";
 
                             case MethodInfo method:
                             {
