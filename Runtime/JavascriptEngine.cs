@@ -25,9 +25,9 @@ namespace Modules.Runtime
         private static void SetTimeout(Delegate callback, int milliseconds) =>
             UniTask.Delay(milliseconds).ContinueWith(callback.Resolve);
 
-        public abstract ISet<Type> TypesToBind { get; }
+        internal Engine Engine => _engine;
 
-        public Engine Engine => _engine;
+        public abstract ISet<Type> TypesToBind { get; }
 
         public void Initialize()
         {
@@ -37,12 +37,12 @@ namespace Modules.Runtime
             }
 
             // 즈언통의 window를 사용
-            _engine.SetValue("window", this);
+            Engine.SetValue("window", this);
 
             // setTimeout을 만들어줘야 다른 Promise들도 작동한다
-            _engine.SetValue("setTimeout", new Action<Delegate, int>(SetTimeout));
+            Engine.SetValue("setTimeout", new Action<Delegate, int>(SetTimeout));
 
-            _engine.Execute(@"
+            Engine.Execute(@"
 const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
     return new Promise(function(resolve) {
         action(resolve, p1, p2, p3, p4, p5, p6, p7, p8);
@@ -50,7 +50,7 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
 };"
             );
 
-            _newPromise = _engine.GetValue("__createPromise__");
+            _newPromise = Engine.GetValue("__createPromise__");
             var types = TypesToBind;
             var typeofMonoBehaviour = typeof(MonoBehaviour);
             var typeofJsEngine = typeof(JavascriptEngine);
@@ -67,7 +67,7 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
                     continue;
                 }
 
-                _engine.SetValue(type.Name, TypeReference.CreateTypeReference(_engine, type));
+                Engine.SetValue(type.Name, TypeReference.CreateTypeReference(Engine, type));
                 _typeNames.Add(type.Name);
             }
 
@@ -77,13 +77,13 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
         public void RunDirectly(string source)
         {
             Initialize();
-            _engine.Execute(_parser.Parse(source));
+            Engine.Execute(_parser.Parse(source));
         }
 
         public JsValue RunDirectlyAndGetValue(string source)
         {
             Initialize();
-            return _engine.Execute(_parser.Parse(source)).GetCompletionValue();
+            return Engine.Execute(_parser.Parse(source)).GetCompletionValue();
         }
 
         public void Run(string key)
@@ -134,71 +134,148 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
         {
             Initialize();
 
-            _engine.Execute(program);
+            Engine.Execute(program);
         }
 
-        protected JsValue Promise(Action<Delegate> handle) => _newPromise.Invoke(JsValue.FromObject(_engine, handle));
+        protected JsValue Promise(Action<Delegate> handle) => _newPromise.Invoke(JsValue.FromObject(Engine, handle));
 
         protected JsValue Promise<T>(Action<Delegate, T> handle, T parameter) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, parameter));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, parameter));
 
         protected JsValue Promise<T1, T2>(
             Action<Delegate, T1, T2> handle,
             T1 p1, T2 p2) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2));
 
         protected JsValue Promise<T1, T2, T3>(
             Action<Delegate, T1, T2, T3> handle,
             T1 p1, T2 p2, T3 p3) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2), JsValue.FromObject(_engine, p3));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3));
 
         protected JsValue Promise<T1, T2, T3, T4>(
             Action<Delegate, T1, T2, T3, T4> handle,
             T1 p1, T2 p2, T3 p3, T4 p4) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2), JsValue.FromObject(_engine, p3),
-                JsValue.FromObject(_engine, p4));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4));
 
         protected JsValue Promise<T1, T2, T3, T4, T5>(
             Action<Delegate, T1, T2, T3, T4, T5> handle,
             T1 p1, T2 p2, T3 p3, T4 p4, T5 p5) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2), JsValue.FromObject(_engine, p3),
-                JsValue.FromObject(_engine, p4), JsValue.FromObject(_engine, p5));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5));
 
         protected JsValue Promise<T1, T2, T3, T4, T5, T6>(
             Action<Delegate, T1, T2, T3, T4, T5, T6> handle,
             T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2), JsValue.FromObject(_engine, p3),
-                JsValue.FromObject(_engine, p4), JsValue.FromObject(_engine, p5), JsValue.FromObject(_engine, p6));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5), JsValue.FromObject(Engine, p6));
 
         protected JsValue Promise<T1, T2, T3, T4, T5, T6, T7>(
             Action<Delegate, T1, T2, T3, T4, T5, T6, T7> handle,
             T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2), JsValue.FromObject(_engine, p3),
-                JsValue.FromObject(_engine, p4), JsValue.FromObject(_engine, p5), JsValue.FromObject(_engine, p6),
-                JsValue.FromObject(_engine, p7));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5), JsValue.FromObject(Engine, p6),
+                JsValue.FromObject(Engine, p7));
 
         protected JsValue Promise<T1, T2, T3, T4, T5, T6, T7, T8>(
             Action<Delegate, T1, T2, T3, T4, T5, T6, T7, T8> handle,
             T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8) =>
             _newPromise.Invoke(
-                JsValue.FromObject(_engine, handle),
-                JsValue.FromObject(_engine, p1), JsValue.FromObject(_engine, p2), JsValue.FromObject(_engine, p3),
-                JsValue.FromObject(_engine, p4), JsValue.FromObject(_engine, p5), JsValue.FromObject(_engine, p6),
-                JsValue.FromObject(_engine, p7), JsValue.FromObject(_engine, p8));
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5), JsValue.FromObject(Engine, p6),
+                JsValue.FromObject(Engine, p7), JsValue.FromObject(Engine, p8));
+    }
+
+    public abstract class BoundClass
+    {
+        private readonly JavascriptEngine _jsEngine;
+        private readonly JsValue _newPromise;
+
+        private Engine Engine => _jsEngine.Engine;
+
+        protected BoundClass(JavascriptEngine jsEngine)
+        {
+            _jsEngine = jsEngine;
+            _newPromise = Engine.GetValue("__createPromise__");
+        }
+
+        protected JsValue Promise(Action<Delegate> handle) => _newPromise.Invoke(JsValue.FromObject(Engine, handle));
+
+        protected JsValue Promise<T>(Action<Delegate, T> handle, T parameter) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, parameter));
+
+        protected JsValue Promise<T1, T2>(
+            Action<Delegate, T1, T2> handle,
+            T1 p1, T2 p2) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2));
+
+        protected JsValue Promise<T1, T2, T3>(
+            Action<Delegate, T1, T2, T3> handle,
+            T1 p1, T2 p2, T3 p3) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3));
+
+        protected JsValue Promise<T1, T2, T3, T4>(
+            Action<Delegate, T1, T2, T3, T4> handle,
+            T1 p1, T2 p2, T3 p3, T4 p4) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4));
+
+        protected JsValue Promise<T1, T2, T3, T4, T5>(
+            Action<Delegate, T1, T2, T3, T4, T5> handle,
+            T1 p1, T2 p2, T3 p3, T4 p4, T5 p5) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5));
+
+        protected JsValue Promise<T1, T2, T3, T4, T5, T6>(
+            Action<Delegate, T1, T2, T3, T4, T5, T6> handle,
+            T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5), JsValue.FromObject(Engine, p6));
+
+        protected JsValue Promise<T1, T2, T3, T4, T5, T6, T7>(
+            Action<Delegate, T1, T2, T3, T4, T5, T6, T7> handle,
+            T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5), JsValue.FromObject(Engine, p6),
+                JsValue.FromObject(Engine, p7));
+
+        protected JsValue Promise<T1, T2, T3, T4, T5, T6, T7, T8>(
+            Action<Delegate, T1, T2, T3, T4, T5, T6, T7, T8> handle,
+            T1 p1, T2 p2, T3 p3, T4 p4, T5 p5, T6 p6, T7 p7, T8 p8) =>
+            _newPromise.Invoke(
+                JsValue.FromObject(Engine, handle),
+                JsValue.FromObject(Engine, p1), JsValue.FromObject(Engine, p2), JsValue.FromObject(Engine, p3),
+                JsValue.FromObject(Engine, p4), JsValue.FromObject(Engine, p5), JsValue.FromObject(Engine, p6),
+                JsValue.FromObject(Engine, p7), JsValue.FromObject(Engine, p8));
     }
 
     public static class ResolveExtension

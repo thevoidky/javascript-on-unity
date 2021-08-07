@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using Jint.Native;
 using Modules.Runtime;
 using Newtonsoft.Json;
 using UnityEditor;
@@ -616,7 +617,10 @@ namespace Modules.Editor
                                     ? string.Empty
                                     : method.ReturnType.IsValueType
                                         ? Activator.CreateInstance(method.ReturnType).ToString()
-                                        : $"new {method.ReturnType.Name}()";
+                                        : Regex.IsMatch(method.Name, @"async$", RegexOptions.IgnoreCase) &&
+                                          method.ReturnType == typeof(JsValue)
+                                            ? $"new Promise(null)"
+                                            : $"new {method.ReturnType.Name}()";
 
                                 methodBuilder.Append(
                                     $") {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
@@ -723,7 +727,10 @@ namespace Modules.Editor
                                     ? string.Empty
                                     : method.ReturnType.IsValueType
                                         ? Activator.CreateInstance(method.ReturnType).ToString()
-                                        : $"new {method.ReturnType.Name}()";
+                                        : Regex.IsMatch(method.Name, @"async$", RegexOptions.IgnoreCase) &&
+                                          method.ReturnType == typeof(JsValue)
+                                            ? $"new Promise(null)"
+                                            : $"new {method.ReturnType.Name}()";
 
                                 methodBuilder.Append(
                                     $") {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
