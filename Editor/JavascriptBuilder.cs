@@ -617,7 +617,7 @@ namespace Modules.Editor
                                     ? string.Empty
                                     : method.ReturnType.IsValueType
                                         ? Activator.CreateInstance(method.ReturnType).ToString()
-                                        : Regex.IsMatch(method.Name, @"async$", RegexOptions.IgnoreCase) &&
+                                        : Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
                                           method.ReturnType == typeof(JsValue)
                                             ? $"new Promise(null)"
                                             : $"new {method.ReturnType.Name}()";
@@ -727,7 +727,7 @@ namespace Modules.Editor
                                     ? string.Empty
                                     : method.ReturnType.IsValueType
                                         ? Activator.CreateInstance(method.ReturnType).ToString()
-                                        : Regex.IsMatch(method.Name, @"async$", RegexOptions.IgnoreCase) &&
+                                        : Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
                                           method.ReturnType == typeof(JsValue)
                                             ? $"new Promise(null)"
                                             : $"new {method.ReturnType.Name}()";
