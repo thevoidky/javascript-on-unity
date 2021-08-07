@@ -12,20 +12,27 @@ namespace Modules.Runtime
 {
     public abstract class JavascriptEngine
     {
-        private readonly Engine _engine = new Engine();
+        private Engine _engine = new Engine();
         private readonly HashSet<string> _typeNames = new HashSet<string>();
 
         private readonly JavaScriptParser _parser = new JavaScriptParser();
         private readonly Dictionary<string, Program> _programs = new Dictionary<string, Program>();
 
-        private readonly JsValue _newPromise;
+        private JsValue _newPromise;
 
         private bool _isInitialized;
 
-        protected JavascriptEngine()
+        private static void SetTimeout(Delegate callback, int milliseconds) =>
+            UniTask.Delay(milliseconds).ContinueWith(callback.Resolve);
+
+        public abstract ISet<Type> TypesToBind { get; }
+
+        public void Initialize()
         {
-            static void SetTimeout(Delegate callback, int milliseconds) => UniTask.Delay(milliseconds)
-                .ContinueWith(callback.Resolve);
+            if (_isInitialized)
+            {
+                return;
+            }
 
             // 즈언통의 window를 사용
             _engine.SetValue("window", this);
@@ -42,20 +49,6 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
             );
 
             _newPromise = _engine.GetValue("__createPromise__");
-
-            // TODO: 코드를 미리 파싱해서 빠르게 실행할 수 있도록, 아래는 샘플 코드
-            // var program = _parser.Parse(source);
-        }
-
-        public abstract ISet<Type> TypesToBind { get; }
-
-        public void Initialize()
-        {
-            if (_isInitialized)
-            {
-                return;
-            }
-
             var types = TypesToBind;
             var typeofMonoBehaviour = typeof(MonoBehaviour);
             var typeofJsEngine = typeof(JavascriptEngine);
@@ -79,11 +72,57 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
             _isInitialized = true;
         }
 
-        public void Run(string source)
+        public void RunDirectly(string source) => _engine.Execute(_parser.Parse(source));
+
+        public void Run(string key)
+        {
+            if (!_programs.ContainsKey(key))
+            {
+                Debug.LogError($"{GetType()}: Not be compiled as this key. ({key})");
+                return;
+            }
+
+            Run(_programs[key]);
+        }
+
+        public bool Compile(string key, string source)
+        {
+            try
+            {
+                var program = _parser.Parse(source);
+                if (_programs.ContainsKey(key))
+                {
+                    Debug.LogWarning($"{GetType()}: Contains key already, it will be overridden. ({key})");
+                }
+
+                _programs[key] = program;
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError(e);
+                return false;
+            }
+        }
+
+        public void Remove(string key) => _programs.Remove(key);
+
+        public void Reset()
+        {
+            _engine = new Engine();
+            _programs.Clear();
+            _typeNames.Clear();
+
+            _isInitialized = false;
+            Initialize();
+        }
+
+        private void Run(Program program)
         {
             Initialize();
 
-            _engine.Execute(source);
+            _engine.Execute(program);
         }
 
         protected object Promise(Action<Delegate> handle) => _newPromise.Invoke(JsValue.FromObject(_engine, handle));
