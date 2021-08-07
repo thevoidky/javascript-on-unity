@@ -27,6 +27,8 @@ namespace Modules.Runtime
 
         public abstract ISet<Type> TypesToBind { get; }
 
+        public Engine Engine => _engine;
+
         public void Initialize()
         {
             if (_isInitialized)
@@ -72,7 +74,11 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
             _isInitialized = true;
         }
 
-        public void RunDirectly(string source) => _engine.Execute(_parser.Parse(source));
+        public void RunDirectly(string source)
+        {
+            Initialize();
+            _engine.Execute(_parser.Parse(source));
+        }
 
         public void Run(string key)
         {
@@ -125,7 +131,7 @@ const __createPromise__ = function (action, p1, p2, p3, p4, p5, p6, p7, p8) {
             _engine.Execute(program);
         }
 
-        protected object Promise(Action<Delegate> handle) => _newPromise.Invoke(JsValue.FromObject(_engine, handle));
+        protected JsValue Promise(Action<Delegate> handle) => _newPromise.Invoke(JsValue.FromObject(_engine, handle));
 
         protected JsValue Promise<T>(Action<Delegate, T> handle, T parameter) =>
             _newPromise.Invoke(
