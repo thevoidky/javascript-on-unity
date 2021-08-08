@@ -513,24 +513,23 @@ namespace Modules.Editor
 
                     {
                         var typesToBind = temporaryInstance.TypesToBind;
-                        if (null != typesToBind)
-                        {
-                            var imports = string.Join("\r\n", typesToBind
+                        var imports = null != typesToBind
+                            ? string.Join("\r\n", typesToBind
                                 .Where(boundTypesToImportPaths.ContainsKey)
                                 .Select(boundType =>
-                                    $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"));
+                                    $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"))
+                            : string.Empty;
 
-                            var engineJs = $"{imports}\r\n\r\n{SerializeEngine(type)}";
+                        var engineJs = $"{imports}\r\n\r\n{SerializeEngine(type)}";
 
-                            if (!File.Exists(engineFullPath) && !Directory.Exists(engineDirectory))
-                            {
-                                Directory.CreateDirectory(engineDirectory);
-                            }
-
-                            File.WriteAllText(engineFullPath, engineJs, Encoding.UTF8);
-
-                            Debug.Log($"Succeeded to create helper \"{engineFullPath}\"");
+                        if (!File.Exists(engineFullPath) && !Directory.Exists(engineDirectory))
+                        {
+                            Directory.CreateDirectory(engineDirectory);
                         }
+
+                        File.WriteAllText(engineFullPath, engineJs, Encoding.UTF8);
+
+                        Debug.Log($"Succeeded to create helper \"{engineFullPath}\"");
                     }
                 }
                 catch (Exception e)
