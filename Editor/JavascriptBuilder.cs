@@ -924,7 +924,17 @@ namespace Modules.Editor
             {
                 using (new GUILayout.VerticalScope())
                 {
-                    if (GUILayout.Button($"{(isInstallationComplete ? "Force install" : "Install")} npm modules",
+                    if (RawScriptRoot == null)
+                    {
+                        var oldEnabled = GUI.enabled;
+                        GUI.enabled = RawScriptRoot != null;
+
+                        GUILayout.Button("Set raw script root to install npm modules or build", style,
+                            GUILayout.Height(height));
+
+                        GUI.enabled = oldEnabled;
+                    }
+                    else if (GUILayout.Button($"{(isInstallationComplete ? "Force install" : "Install")} npm modules",
                         style, GUILayout.Height(height)))
                     {
                         Install();
