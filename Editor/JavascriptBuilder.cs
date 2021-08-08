@@ -429,6 +429,8 @@ namespace Modules.Editor
             process.WaitForExit(3600000);
 
             Uncomment();
+
+            AssetDatabase.Refresh();
         }
 
         public static void Generate()
@@ -528,6 +530,7 @@ namespace Modules.Editor
                         }
 
                         File.WriteAllText(engineFullPath, engineJs, Encoding.UTF8);
+                        AssetDatabase.Refresh();
 
                         Debug.Log($"Succeeded to create helper \"{engineFullPath}\"");
                     }
