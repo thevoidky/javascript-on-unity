@@ -456,74 +456,81 @@ namespace Modules.Editor
 
                     {
                         var typesToBind = temporaryInstance.TypesToBind;
-                        var tuples = typesToBind
-                            .Where(t => !boundTypesToImportPaths.ContainsKey(t))
-                            .Select(t => (t, SerializeClass(t, typesToBind)));
-
-                        foreach (var (t, javascript) in tuples)
+                        if (null != typesToBind)
                         {
-                            var directory =
-                                $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{t.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
-                            var filename = $".{t.Name}.js";
-                            var fullPath = $"{directory}{Path.DirectorySeparatorChar}{filename}";
+                            var tuples = typesToBind
+                                .Where(t => !boundTypesToImportPaths.ContainsKey(t))
+                                .Select(t => (t, SerializeClass(t, typesToBind)));
 
-                            var equalIndex = engineFullPath.Aggregate(0, (index, ch) =>
+                            foreach (var (t, javascript) in tuples)
                             {
-                                if (index >= fullPath.Length || fullPath[index] != ch)
+                                var directory =
+                                    $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{t.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
+                                var filename = $".{t.Name}.js";
+                                var fullPath = $"{directory}{Path.DirectorySeparatorChar}{filename}";
+
+                                var equalIndex = engineFullPath.Aggregate(0, (index, ch) =>
                                 {
-                                    return index;
+                                    if (index >= fullPath.Length || fullPath[index] != ch)
+                                    {
+                                        return index;
+                                    }
+
+                                    return index + 1;
+                                });
+
+                                var equalPathLength = engineFullPath.Substring(0, equalIndex)
+                                    .LastIndexOf(Path.DirectorySeparatorChar) + 1;
+                                var differentEnginePath = engineFullPath.Substring(equalPathLength,
+                                    engineFullPath.Length - equalPathLength);
+                                var differentClassPath =
+                                    fullPath.Substring(equalPathLength, fullPath.Length - equalPathLength);
+
+                                var depthCount = differentEnginePath.Aggregate(0,
+                                    (count, ch) => count + ch == Path.DirectorySeparatorChar ? 1 : 0);
+
+                                var relativePathBuilder = new StringBuilder("./");
+                                for (var i = 0; i < depthCount; ++i)
+                                {
+                                    relativePathBuilder.Append("../");
                                 }
 
-                                return index + 1;
-                            });
+                                relativePathBuilder.Append(differentClassPath);
 
-                            var equalPathLength = engineFullPath.Substring(0, equalIndex)
-                                .LastIndexOf(Path.DirectorySeparatorChar) + 1;
-                            var differentEnginePath = engineFullPath.Substring(equalPathLength,
-                                engineFullPath.Length - equalPathLength);
-                            var differentClassPath =
-                                fullPath.Substring(equalPathLength, fullPath.Length - equalPathLength);
+                                boundTypesToImportPaths.Add(t, relativePathBuilder.ToString());
 
-                            var depthCount = differentEnginePath.Aggregate(0,
-                                (count, ch) => count + ch == Path.DirectorySeparatorChar ? 1 : 0);
+                                if (!File.Exists(fullPath) && !Directory.Exists(directory))
+                                {
+                                    Directory.CreateDirectory(directory);
+                                }
 
-                            var relativePathBuilder = new StringBuilder("./");
-                            for (var i = 0; i < depthCount; ++i)
-                            {
-                                relativePathBuilder.Append("../");
+                                File.WriteAllText(fullPath, javascript, Encoding.UTF8);
+
+                                Debug.Log($"Succeeded to create helper \"{fullPath}\"");
                             }
-
-                            relativePathBuilder.Append(differentClassPath);
-
-                            boundTypesToImportPaths.Add(t, relativePathBuilder.ToString());
-
-                            if (!File.Exists(fullPath) && !Directory.Exists(directory))
-                            {
-                                Directory.CreateDirectory(directory);
-                            }
-
-                            File.WriteAllText(fullPath, javascript, Encoding.UTF8);
-
-                            Debug.Log($"Succeeded to create helper \"{fullPath}\"");
                         }
                     }
 
                     {
-                        var imports = string.Join("\r\n", temporaryInstance.TypesToBind
-                            .Where(boundTypesToImportPaths.ContainsKey)
-                            .Select(boundType =>
-                                $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"));
-
-                        var engineJs = $"{imports}\r\n\r\n{SerializeEngine(type)}";
-
-                        if (!File.Exists(engineFullPath) && !Directory.Exists(engineDirectory))
+                        var typesToBind = temporaryInstance.TypesToBind;
+                        if (null != typesToBind)
                         {
-                            Directory.CreateDirectory(engineDirectory);
+                            var imports = string.Join("\r\n", typesToBind
+                                .Where(boundTypesToImportPaths.ContainsKey)
+                                .Select(boundType =>
+                                    $"import {{{boundType.Name}}} from '{boundTypesToImportPaths[boundType]}';"));
+
+                            var engineJs = $"{imports}\r\n\r\n{SerializeEngine(type)}";
+
+                            if (!File.Exists(engineFullPath) && !Directory.Exists(engineDirectory))
+                            {
+                                Directory.CreateDirectory(engineDirectory);
+                            }
+
+                            File.WriteAllText(engineFullPath, engineJs, Encoding.UTF8);
+
+                            Debug.Log($"Succeeded to create helper \"{engineFullPath}\"");
                         }
-
-                        File.WriteAllText(engineFullPath, engineJs, Encoding.UTF8);
-
-                        Debug.Log($"Succeeded to create helper \"{engineFullPath}\"");
                     }
                 }
                 catch (Exception e)
