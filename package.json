@@ -7,6 +7,13 @@
   "dependencies": {
     "com.unity.test-framework": "1.1.27"
   },
+  "samples": [
+    {
+      "displayName": "Testbed",
+      "description": "Contains javascripts before and after build",
+      "path": "Samples~/Testbed"
+    }
+  ],
   "keywords": [
     "ootl",
     "javascript",
