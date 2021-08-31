@@ -7,14 +7,14 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Jint.Native;
-using Modules.Runtime;
+using OOTL.JavascriptOnUnity.Runtime;
 using Newtonsoft.Json;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace Modules.Editor
+namespace OOTL.JavascriptOnUnity.Editor
 {
     public class JavascriptBuilder : EditorWindow
     {

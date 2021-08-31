@@ -8,7 +8,7 @@ using Jint.Parser.Ast;
 using Jint.Runtime.Interop;
 using UnityEngine;
 
-namespace Modules.Runtime
+namespace OOTL.JavascriptOnUnity.Runtime
 {
     public abstract class JavascriptEngine
     {

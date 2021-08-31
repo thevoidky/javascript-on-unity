@@ -11,7 +11,7 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using Assert = UnityEngine.Assertions.Assert;
 
-namespace Modules.Tests.Editor.Scripts
+namespace OOTL.JavascriptOnUnity.Tests.Editor.Scripts
 {
     public class TestRunner
     {
