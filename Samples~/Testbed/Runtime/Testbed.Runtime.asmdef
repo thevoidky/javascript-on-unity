@@ -1,0 +1,21 @@
+{
+    "name": "JavascriptTestbed",
+    "rootNamespace": "",
+    "references": [
+        "GUID:4264342a9b09d1f4fb28763b832e95b6",
+        "GUID:f51ebe6a0ceec4240a699833d6309b23",
+        "GUID:029c1c1b674aaae47a6841a0b89ad80e",
+        "GUID:5c01796d064528144a599661eaab93a6",
+        "GUID:593a5b492d29ac6448b1ebf7f035ef33",
+        "GUID:dc47925d1a5fa2946bdd37746b2b5d48"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,20 @@
+{
+    "name": "JavascriptTestbed.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:758466e65518fb84eb9931ff8da2f0d3",
+        "GUID:4264342a9b09d1f4fb28763b832e95b6",
+        "GUID:b0c694a5fb51cdf489be605c157e14f8"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
