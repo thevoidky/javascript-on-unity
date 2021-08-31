@@ -720,7 +720,8 @@ namespace OOTL.JavascriptOnUnity.Editor
                         switch (member)
                         {
                             case PropertyInfo prop:
-                                return $@"{prop.Name} = {prop.GetValue(temporaryInstance)};";
+                                return
+                                    $@"{prop.Name} = {(prop.PropertyType == typeof(string) ? "''" : prop.GetValue(temporaryInstance))};";
 
                             case MethodInfo method:
                             {
