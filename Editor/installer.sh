@@ -1,6 +1,6 @@
 DIRECTORY=$1
 DRIVE=$2
 
-cd $DRIVE
-cd $DIRECTORY
+eval cd $DRIVE
+eval cd $DIRECTORY
 npm install
