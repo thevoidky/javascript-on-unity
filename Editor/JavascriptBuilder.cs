@@ -346,8 +346,9 @@ namespace OOTL.JavascriptOnUnity.Editor
             }
 
             var parameters = $"\"{workspace}\" {drive}";
+            var installerPath = InstallerPath.Replace('\\', '/');
 
-            var process = Process.Start(InstallerPath, parameters);
+            var process = Process.Start(installerPath, parameters);
             process?.WaitForExit();
 
             AssetDatabase.Refresh();
@@ -417,8 +418,9 @@ namespace OOTL.JavascriptOnUnity.Editor
 
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
             var parameters = $"'{workspace}' {drive} {isDevBuild}";
+            var builderPath = BuilderPath.Replace('\\', '/');
 
-            var process = Process.Start(BuilderPath, parameters);
+            var process = Process.Start(builderPath, parameters);
             if (process == null)
             {
                 Debug.LogError($"Failed to start a process.\nPath: {BuilderPath}\nArguments: {parameters})");
