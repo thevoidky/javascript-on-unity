@@ -345,10 +345,10 @@ namespace OOTL.JavascriptOnUnity.Editor
                 File.Copy(path, Path.Combine(NodeModulesParentPath, filename));
             }
 
+            workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
             var parameters = $"\"{workspace}\" {drive}";
-            var installerPath = InstallerPath.Replace('\\', '/').Replace(" ", "\\ ");
 
-            var process = Process.Start(installerPath, parameters);
+            var process = Process.Start(InstallerPath, parameters);
             process?.WaitForExit();
 
             AssetDatabase.Refresh();
@@ -417,10 +417,10 @@ namespace OOTL.JavascriptOnUnity.Editor
                 .Replace(":", "");
 
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
+            workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
             var parameters = $"'{workspace}' {drive} {isDevBuild}";
-            var builderPath = BuilderPath.Replace('\\', '/').Replace(" ", "\\ ");;
 
-            var process = Process.Start(builderPath, parameters);
+            var process = Process.Start(BuilderPath, parameters);
             if (process == null)
             {
                 Debug.LogError($"Failed to start a process.\nPath: {BuilderPath}\nArguments: {parameters})");
