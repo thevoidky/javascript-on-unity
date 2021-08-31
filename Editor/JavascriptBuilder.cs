@@ -130,7 +130,7 @@ namespace OOTL.JavascriptOnUnity.Editor
 
         public static DefaultAsset RawScriptRoot
         {
-            get => _buildSettings.rawScriptRoot;
+            get => _buildSettings.rawScriptsRoot;
             set
             {
                 var so = new SerializedObject(_buildSettings);
@@ -195,7 +195,7 @@ namespace OOTL.JavascriptOnUnity.Editor
 
         public static DefaultAsset BuiltScriptRoot
         {
-            get => _buildSettings.builtScriptRoot;
+            get => _buildSettings.builtScriptsRoot;
             set
             {
                 var so = new SerializedObject(_buildSettings);
@@ -372,9 +372,9 @@ namespace OOTL.JavascriptOnUnity.Editor
                         .Select(path => Regex.Replace(path, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
                             $".{Path.DirectorySeparatorChar}"));
 
-                var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptRoot);
+                var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptsRoot);
 
-                var output = new Dictionary<string, string> {{"path", AssetPathToAbsolutePath(builtScriptRoot)}};
+                var output = new Dictionary<string, string> { { "path", AssetPathToAbsolutePath(builtScriptRoot) } };
 
                 var outputContent = JsonConvert.SerializeObject(output);
                 File.WriteAllText(OutputPath, outputContent);
@@ -461,7 +461,7 @@ namespace OOTL.JavascriptOnUnity.Editor
                         if (null != typesToBind)
                         {
                             var tuples = typesToBind
-                                .Where(t => !boundTypesToImportPaths.ContainsKey(t))
+                                .Where(t => t.IsClass && !boundTypesToImportPaths.ContainsKey(t))
                                 .Select(t => (t, SerializeClass(t, typesToBind)));
 
                             foreach (var (t, javascript) in tuples)
@@ -543,7 +543,8 @@ namespace OOTL.JavascriptOnUnity.Editor
             }
         }
 
-        private static bool IsValidType(Type t) => // boolean
+        private static bool IsValidType(Type t) =>
+            // boolean
             t == typeof(bool) ||
             // number
             t == typeof(int) || t == typeof(long) ||
@@ -555,7 +556,7 @@ namespace OOTL.JavascriptOnUnity.Editor
             // class
             (t.IsClass && !t.IsSubclassOf(typeof(MonoBehaviour)) && !t.IsSubclassOf(typeof(JavascriptEngine)));
 
-        private static string TypeToPrefix(Type t) => $"{(t.IsValueType ? t.Name.ToLower() : t.Name)}_";
+        private static string TypeToPrefix(Type t) => $"{(t.IsValueType || t == typeof(string) ? t.Name.ToLower() : t.Name)}_";
 
         private static string SerializeClass(Type type, ICollection<Type> typesToBind)
         {
@@ -616,11 +617,9 @@ namespace OOTL.JavascriptOnUnity.Editor
                             case MethodInfo method:
                             {
                                 var methodBuilder = new StringBuilder($@"{method.Name}(");
-                                foreach (var parameterInfo in method.GetParameters())
-                                {
-                                    methodBuilder.Append(
-                                        $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
-                                }
+                                var parameters = method.GetParameters().Select(parameterInfo =>
+                                    $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+                                methodBuilder.Append(string.Join(",", parameters));
 
                                 var returnValue = method.ReturnType == typeof(void)
                                     ? string.Empty
@@ -726,11 +725,9 @@ namespace OOTL.JavascriptOnUnity.Editor
                             case MethodInfo method:
                             {
                                 var methodBuilder = new StringBuilder($@"{method.Name}(");
-                                foreach (var parameterInfo in method.GetParameters())
-                                {
-                                    methodBuilder.Append(
-                                        $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
-                                }
+                                var parameters = method.GetParameters().Select(parameterInfo =>
+                                    $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+                                methodBuilder.Append(string.Join(",", parameters));
 
                                 var returnValue = method.ReturnType == typeof(void)
                                     ? string.Empty
@@ -866,16 +863,16 @@ namespace OOTL.JavascriptOnUnity.Editor
                 var so = new SerializedObject(_buildSettings);
 
                 /*
-                var rawScriptRoots = new ReorderableList(so, so.FindProperty("rawScriptRoots"));
-                EditorGUILayout.PropertyField(rawScriptRoots.serializedProperty, new GUIContent("Raw Script Roots"),
+                var rawScriptsRoots = new ReorderableList(so, so.FindProperty("rawScriptsRoots"));
+                EditorGUILayout.PropertyField(rawScriptsRoots.serializedProperty, new GUIContent("Raw Scripts Roots"),
                     true);
                 */
 
-                var rawScriptRoot = so.FindProperty("rawScriptRoot");
-                EditorGUILayout.PropertyField(rawScriptRoot, new GUIContent("Raw Script Root"));
+                var rawScriptsRoot = so.FindProperty("rawScriptsRoot");
+                EditorGUILayout.PropertyField(rawScriptsRoot, new GUIContent("Raw Scripts Root"));
 
-                var builtScriptRoot = so.FindProperty("builtScriptRoot");
-                EditorGUILayout.PropertyField(builtScriptRoot, new GUIContent("Built Script Root"));
+                var builtScriptsRoot = so.FindProperty("builtScriptsRoot");
+                EditorGUILayout.PropertyField(builtScriptsRoot, new GUIContent("Built Scripts Root"));
 
                 var isDevBuild = so.FindProperty("isDevBuild");
                 EditorGUILayout.PropertyField(isDevBuild, new GUIContent("Dev Build"));
@@ -921,7 +918,7 @@ namespace OOTL.JavascriptOnUnity.Editor
 
         private void DrawBuildButtons()
         {
-            var style = new GUIStyle("Button") {stretchHeight = true};
+            var style = new GUIStyle("Button") { stretchHeight = true };
 
             var isInstallationComplete = Directory.Exists(NodeModulesPath) && File.Exists(InstallerPath) &&
                                          File.Exists(BuilderPath) &&
