@@ -346,7 +346,7 @@ namespace OOTL.JavascriptOnUnity.Editor
             }
 
             var parameters = $"\"{workspace}\" {drive}";
-            var installerPath = InstallerPath.Replace('\\', '/');
+            var installerPath = InstallerPath.Replace('\\', '/').Replace(" ", "\\ ");
 
             var process = Process.Start(installerPath, parameters);
             process?.WaitForExit();
@@ -418,7 +418,7 @@ namespace OOTL.JavascriptOnUnity.Editor
 
             var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
             var parameters = $"'{workspace}' {drive} {isDevBuild}";
-            var builderPath = BuilderPath.Replace('\\', '/');
+            var builderPath = BuilderPath.Replace('\\', '/').Replace(" ", "\\ ");;
 
             var process = Process.Start(builderPath, parameters);
             if (process == null)
