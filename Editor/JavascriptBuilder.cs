@@ -904,7 +904,7 @@ namespace OOTL.JavascriptOnUnity.Editor
                 var so = new SerializedObject(_buildSettings);
 
                 var generatedHelpersRoot = so.FindProperty("generatedHelpersRoot");
-                EditorGUILayout.PropertyField(generatedHelpersRoot, new GUIContent("Generated Root"));
+                EditorGUILayout.PropertyField(generatedHelpersRoot, new GUIContent("Root to generate"));
 
                 var engines = new ReorderableList(so, so.FindProperty("engines"));
                 EditorGUILayout.PropertyField(engines.serializedProperty, new GUIContent("Engine codes"), true);
