@@ -924,8 +924,8 @@ namespace OOTL.JavascriptOnUnity.Editor
             var style = new GUIStyle("Button") { stretchHeight = true };
 
             var isInstallationComplete = Directory.Exists(NodeModulesPath) && File.Exists(InstallerPath) &&
-                                         File.Exists(BuilderPath) &&
-                                         File.Exists(EntryPath) && File.Exists(OutputPath);
+                                         File.Exists(BuilderPath);
+                                         // && File.Exists(EntryPath) && File.Exists(OutputPath);
 
             var height = _rcBuildButtonArea.height * (isInstallationComplete ? 0.5f : 1f);
 
