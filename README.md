@@ -30,11 +30,11 @@ I referred to [Using real JavaScript with Unity](https://pleasenophp.github.io/p
   - Dev Build: The option of webpack, if it is true, built scripts will NOT be minimized.
 - Set Generate Helpers Options
   - Root to generate: The root path of generated helper javascripts. Helpers are like of header files of C++, but it doesn't matter if you don't have them. The sample has been tested as that set ```Testbed/Editor/Javascripts/RawScripts```.
-  - Engine codes: The files of classes derived ```JavascriptEngine``` class. As ```MonoBehaviour``` does, each file must have one class with the same name. The sample has been tested as that set ```SampleEngine```, but you can set multiple files also.
+  - Engine codes: The files of classes derived ```JavascriptEngine``` class. As ```MonoBehaviour``` does, each files must have one class with the same name. The sample has been tested as that set ```SampleEngine```, but you can set multiple files also.
 - Play the SampleScene
   - A box would be created and moves right and left. The sample contains a class derived ```JavascriptEngine``` and a class derived ```BoundClass```, and contains ```sample.js``` also.
 - To bind a new Javascript
-  - Save new one under the ```Raw Scripts Root``` path and ```Build``` via ```Javascript Builder```. To bind any new Engine or Class, please to see the sample.
+  - Save new one under the ```Raw Scripts Root``` path and ```Build``` via ```Javascript Builder``` window. To bind any new Engine or Class, please to see the sample.
 
 ## Documents
 
