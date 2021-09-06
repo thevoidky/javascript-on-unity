@@ -19,22 +19,22 @@ I referred to [Using real JavaScript with Unity](https://pleasenophp.github.io/p
 - Open the Javascript Builder window
 
   ![image](https://user-images.githubusercontent.com/22534449/131437303-38c1d00b-ac3d-4294-b299-ef76daa90c1f.png)
+- Set Build Options then ```Install npm modules```. This work takes a lot of time.
 
   ![image](https://user-images.githubusercontent.com/22534449/131490619-e907a0c3-b4a9-4a05-bc96-7b963e0aea56.png)
   ![image](https://user-images.githubusercontent.com/22534449/131490534-fb87fd8a-3372-4228-b453-2aa293f768d4.png)
   
   (Before and After)
-- Set Build Options then ```Install npm modules```. This work takes a lot of time.
-  - Raw Scripts Root: The root directory of javascript codes you made or will make directly. Recommended to be under Editor path because of npm modules will be installed in this path. The sample has tested as that set ```Testbed/Editor/Javascripts/RawScripts```.
-  - Built Scripts Root: The root directory of javascript codes that will be generated via webpack. The sample has tested as that set ```Testbed/Runtime/Javascripts/Outputs```.
+  - Raw Scripts Root: The root directory of javascript codes you made or will make directly. Recommended to be under Editor path because of npm modules will be installed in this path. The sample has been tested as that set ```Testbed/Editor/Javascripts/RawScripts```.
+  - Built Scripts Root: The root directory of javascript codes that will be generated via webpack. The sample has been tested as that set ```Testbed/Runtime/Javascripts/Outputs```.
   - Dev Build: The option of webpack, if it is true, built scripts will NOT be minimized.
 - Set Generate Helpers Options
-  - Root to generate: The root path of generated helper javascripts. Helpers are like of header files of C++, but it doesn't matter if you don't have them. The sample has tested as that set ```Testbed/Editor/Javascripts/RawScripts```.
-  - Engine codes: The files of classes derived ```JavascriptEngine``` class. As ```MonoBehaviour``` does, each file must have one class with the same name. The sample has tested as that set ```SampleEngine```, but you can set multiple files also.
+  - Root to generate: The root path of generated helper javascripts. Helpers are like of header files of C++, but it doesn't matter if you don't have them. The sample has been tested as that set ```Testbed/Editor/Javascripts/RawScripts```.
+  - Engine codes: The files of classes derived ```JavascriptEngine``` class. As ```MonoBehaviour``` does, each files must have one class with the same name. The sample has been tested as that set ```SampleEngine```, but you can set multiple files also.
 - Play the SampleScene
   - A box would be created and moves right and left. The sample contains a class derived ```JavascriptEngine``` and a class derived ```BoundClass```, and contains ```sample.js``` also.
 - To bind a new Javascript
-  - Save new one under the ```Raw Scripts Root``` path and ```Build``` via ```Javascript Builder```. To bind any new Engine or Class, please to see the sample.
+  - Save new one under the ```Raw Scripts Root``` path and ```Build``` via ```Javascript Builder``` window. To bind any new Engine or Class, please to see the sample.
 
 ## Documents
 
