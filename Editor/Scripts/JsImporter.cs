@@ -10,17 +10,9 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
     {
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            try
-            {
-                var subAsset = new TextAsset(File.ReadAllText(ctx.assetPath));
-                ctx.AddObjectToAsset("text", subAsset);
-                ctx.SetMainObject(subAsset);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
+            var subAsset = new TextAsset(File.ReadAllText(ctx.assetPath));
+            ctx.AddObjectToAsset("text", subAsset);
+            ctx.SetMainObject(subAsset);
         }
     }
 }
