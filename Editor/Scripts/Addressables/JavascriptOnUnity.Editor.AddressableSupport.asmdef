@@ -1,0 +1,19 @@
+{
+    "name": "JavascriptOnUnity.Editor.AddressableSupport",
+    "rootNamespace": "",
+    "references": [
+        "GUID:b0c694a5fb51cdf489be605c157e14f8",
+        "GUID:69448af7b92c7f342b298e06a37122aa"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

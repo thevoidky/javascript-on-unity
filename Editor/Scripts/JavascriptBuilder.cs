@@ -14,19 +14,19 @@ using UnityEditorInternal;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace OOTL.JavascriptOnUnity.Editor
+namespace OOTL.JavascriptOnUnity.Editor.Scripts
 {
     public class JavascriptBuilder : EditorWindow
     {
         private const string Title = "Javascript Builder";
-        private const string PackageTitle = "Javascript on Unity";
+        private const string PackageTitle = Common.PackageTitle;
 
         private const string ClassHeader = "__class_";
 
 #if OOTL_DEV_LOCAL
         private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
 #else
-        private const string PackageName = "com.ootl.jsou";
+        private const string PackageName = Common.PackageName;
         private static string RootFullPath
         {
             get
@@ -772,7 +772,7 @@ namespace OOTL.JavascriptOnUnity.Editor
             }
         }
 
-        [MenuItem("Javascript on Unity/Open Javascript Builder")]
+        [MenuItem(PackageTitle + "/Open " + Title)]
         private static void ShowWindow()
         {
             var window = GetWindow<JavascriptBuilder>();
