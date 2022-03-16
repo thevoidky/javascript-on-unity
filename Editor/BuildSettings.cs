@@ -12,5 +12,6 @@ namespace OOTL.JavascriptOnUnity.Editor
 
         public DefaultAsset generatedHelpersRoot;
         public MonoScript[] engines;
+        public bool isTypescriptMode = true;
     }
 }

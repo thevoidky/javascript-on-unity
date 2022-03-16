@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace OOTL.JavascriptOnUnity.Editor.Scripts
 {
-    [ScriptedImporter(1, "js", AllowCaching = true)]
+    [ScriptedImporter(1, new[] { "js", "ts" }, AllowCaching = true)]
     public class JsImporter : ScriptedImporter
     {
         public override void OnImportAsset(AssetImportContext ctx)

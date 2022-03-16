@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define OOTL_DEV_LOCAL
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -39,12 +41,28 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         }
 #endif
 
-        private static readonly Regex Comment = new Regex(
-            @"(^[\s]*(?:import |(?:(?:const|let|var).*require\()).*['""`](?:.+[/\\])*([.][^./\\]+?)['""`])",
+        private static readonly Regex CommentImport = new Regex(
+            @"((?:import |(?:(?:const|let|var).*require\()).*['""`](?:.+[\/\\])*([.][^.\/\\]+?)['""`])",
             RegexOptions.Compiled | RegexOptions.Multiline);
 
-        private static readonly Regex Uncomment = new Regex(
-            @"^// ([\s]*(?:import |(?:(?:const|let|var).*require\()).*['""`](?:.+[/\\])*([.][^./\\]+?)['""`])",
+        private static readonly Regex CommentExportClass = new Regex(
+            @"(export class .*\{(?:[\r\n]*.*)*\})",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+
+        private static readonly Regex CommentExportEtc = new Regex(
+            @"(export (?:const|let|var).*)",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+
+        private static readonly Regex UncommentImport = new Regex(
+            @"\/\/ ([\s]*(?:import |(?:(?:const|let|var).*require\()).*(?:['""`](?:.+[\/\\])*([.][^.\/\\]+?)['""`])?)",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+
+        private static readonly Regex UncommentExportClass = new Regex(
+            @"\/\*(export class .*\{(?:[\r\n]*?.*?)*?\})\*\/",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+
+        private static readonly Regex UncommentExportEtc = new Regex(
+            @"\/\/ (export (?:const|let|var).*)",
             RegexOptions.Compiled | RegexOptions.Multiline);
 
         private static JavascriptBuilder _window = null;
@@ -83,6 +101,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             $"{Workspace}/package-lock.json",
             $"{Workspace}/webpack.config.babel.js",
             $"{Workspace}/.babelrc",
+            $"{Workspace}/tsconfig.json",
         };
 #else
         private static string SourceInstallerPath => $"{RootFullPath}/installer.sh";
@@ -95,12 +114,13 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             $"{RootFullPath}/package-lock.json",
             $"{RootFullPath}/webpack.config.babel.js",
             $"{RootFullPath}/.babelrc",
+            $"{RootFullPath}/tsconfig.json",
         };
 #endif
-        private static string InstallerPath => $"{NodeModulesParentPath}/installer.sh";
-        private static string BuilderPath => $"{NodeModulesParentPath}/builder.sh";
-        private static string NodeModulesParentPath => RawScriptPath;
-        private static string NodeModulesPath => ReplacePath($"{NodeModulesParentPath}/node_modules");
+        private static string InstallerPath => $"{RawScriptPath}/installer.sh";
+        private static string TsConfigPath => $"{RawScriptPath}{Path.DirectorySeparatorChar}tsconfig.json";
+        private static string BuilderPath => $"{RawScriptPath}{Path.DirectorySeparatorChar}builder.sh";
+        private static string NodeModulesPath => ReplacePath($"{RawScriptPath}/node_modules");
 
         private static string RawScriptPath =>
             !RawScriptRoot
@@ -113,8 +133,8 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 : ReplacePath(
                     $"{ProjectPath}{Path.DirectorySeparatorChar}{AssetDatabase.GetAssetPath(GeneratedHelpersRoot)}");
 
-        private static string EntryPath => ReplacePath($"{NodeModulesParentPath}/entry.json");
-        private static string OutputPath => ReplacePath($"{NodeModulesParentPath}/output.json");
+        private static string EntryPath => ReplacePath($"{RawScriptPath}/entry.json");
+        private static string OutputPath => ReplacePath($"{RawScriptPath}/output.json");
 
         private static readonly Regex PathReplacer = new Regex(@"[/\\]", RegexOptions.Compiled);
 
@@ -319,30 +339,25 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         private static string ReplacePath(string path) =>
             PathReplacer.Replace(path, Path.DirectorySeparatorChar.ToString());
 
-        private static void Install()
+        private static void CopyAndInstall()
         {
-            if (Directory.Exists(NodeModulesPath))
-            {
-                return;
-            }
-
-            var match = Regex.Match(NodeModulesParentPath, @"([a-zA-Z]):?[\\/](.*)");
+            var match = Regex.Match(RawScriptPath, @"([a-zA-Z]):?[\\/](.*)");
             var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
             var workspace = PathReplacer
-                .Replace(match.Success ? match.Groups[2].Value : NodeModulesParentPath,
+                .Replace(match.Success ? match.Groups[2].Value : RawScriptPath,
                     $"{Path.DirectorySeparatorChar}")
                 .Replace(":", "");
 
             foreach (var path in FilesToCopy)
             {
                 var filename = Path.GetFileName(path);
-                var combinedPath = Path.Combine(NodeModulesParentPath, filename);
+                var combinedPath = Path.Combine(RawScriptPath, filename);
                 if (File.Exists(combinedPath))
                 {
                     File.Delete(combinedPath);
                 }
 
-                File.Copy(path, Path.Combine(NodeModulesParentPath, filename));
+                File.Copy(path, Path.Combine(RawScriptPath, filename));
             }
 
             workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
@@ -362,16 +377,52 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             }
 
             var rawScriptFullPaths = new List<string>();
+            var rawScriptPaths = new Dictionary<string, string>();
+            var isTypescript = _buildSettings.isTypescriptMode;
 
             void GenerateMetadata()
             {
                 var absolutePath = AssetPathToAbsolutePath(RawScriptPath);
-                rawScriptFullPaths.AddRange(Directory.GetFiles(absolutePath, @"*.js", SearchOption.AllDirectories)
-                    .Where(path => !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js")));
-                var rawScriptPaths =
-                    rawScriptFullPaths
-                        .Select(path => Regex.Replace(path, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
-                            $".{Path.DirectorySeparatorChar}"));
+                var javascripts = Directory.GetFiles(absolutePath, @"*.js", SearchOption.AllDirectories)
+                    .Where(path => !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js"));
+
+                foreach (var js in javascripts)
+                {
+                    var path = Regex.Replace(js, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
+                        $".{Path.DirectorySeparatorChar}");
+                    // var path = Regex.Replace(js, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*", $"./");
+                    rawScriptFullPaths.Add(js);
+
+                    var directory = Path.GetDirectoryName(path);
+                    var filenameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+                    var key = $"{directory}{Path.DirectorySeparatorChar}{filenameWithoutExtension}";
+                    rawScriptPaths[key] = path;
+                }
+
+                if (isTypescript)
+                {
+                    var typescripts = Directory.GetFiles(absolutePath, @"*.ts", SearchOption.AllDirectories)
+                        .Where(path => !path.StartsWith(NodeModulesPath));
+
+                    foreach (var ts in typescripts)
+                    {
+                        var path = Regex.Replace(ts, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
+                            $".{Path.DirectorySeparatorChar}");
+                        // var path = Regex.Replace(ts, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*", $"./");
+                        rawScriptFullPaths.Add(ts);
+
+                        var directory = Path.GetDirectoryName(path);
+                        var filenameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+                        var key = $"{directory}{Path.DirectorySeparatorChar}{filenameWithoutExtension}";
+                        rawScriptPaths[key] = path;
+                    }
+                }
+
+                // var rawScriptPaths =
+                //     rawScriptFullPaths
+                //         .Select(path => Regex.Replace(path, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
+                //             $".{Path.DirectorySeparatorChar}"))
+                //         .ToArray();
 
                 var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptsRoot);
 
@@ -380,7 +431,8 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 var outputContent = JsonConvert.SerializeObject(output);
                 File.WriteAllText(OutputPath, outputContent);
 
-                var entry = rawScriptPaths.ToDictionary(scriptPath => Regex.Replace(scriptPath, @".js$", ""));
+                // var entry = rawScriptPaths.ToDictionary(scriptPath => Regex.Replace(scriptPath, @".(js|ts)$", ""));
+                var entry = rawScriptPaths;
 
                 var entryContent = JsonConvert.SerializeObject(entry);
                 File.WriteAllText(EntryPath, entryContent, Encoding.UTF8);
@@ -390,9 +442,16 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             {
                 foreach (var path in rawScriptFullPaths)
                 {
-                    var javascript = File.ReadAllText(path);
-                    javascript = JavascriptBuilder.Comment.Replace(javascript, "// $1");
-                    File.WriteAllText(path, javascript);
+                    var script = File.ReadAllText(path);
+                    script = CommentImport.Replace(script, "// $1");
+
+                    if (Path.GetFileNameWithoutExtension(path)[0] == '.')
+                    {
+                        script = CommentExportClass.Replace(script, "/*$1*/");
+                        script = CommentExportEtc.Replace(script, "// $1");
+                    }
+
+                    File.WriteAllText(path, script);
                 }
             }
 
@@ -400,23 +459,30 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             {
                 foreach (var path in rawScriptFullPaths)
                 {
-                    var javascript = File.ReadAllText(path);
-                    javascript = JavascriptBuilder.Uncomment.Replace(javascript, "$1");
-                    File.WriteAllText(path, javascript);
+                    var script = File.ReadAllText(path);
+                    script = UncommentImport.Replace(script, "$1");
+                    if (Path.GetFileNameWithoutExtension(path)[0] == '.')
+                    {
+                        script = UncommentExportClass.Replace(script, "$1");
+                        script = UncommentExportEtc.Replace(script, "$1");
+                    }
+
+                    File.WriteAllText(path, script);
                 }
             }
 
             GenerateMetadata();
             Comment();
 
-            var match = Regex.Match(NodeModulesParentPath, @"([a-zA-Z]):?[\\/](.*)");
+            var match = Regex.Match(RawScriptPath, @"([a-zA-Z]):?[\\/](.*)");
             var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
             var workspace = PathReplacer
-                .Replace(match.Success ? match.Groups[2].Value : NodeModulesParentPath,
+                .Replace(match.Success ? match.Groups[2].Value : RawScriptPath,
                     $"{Path.DirectorySeparatorChar}")
                 .Replace(":", "");
 
-            var isDevBuild = _buildSettings.isDevBuild.ToString().ToLower();
+            var isDevBuild = _buildSettings.isDevBuild;
+
             workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
             var parameters = $"'{workspace}' {drive} {isDevBuild}";
 
@@ -427,7 +493,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 return;
             }
 
-            // Wait for an hour
+            // Wait for an hour as limit
             process.WaitForExit(3600000);
 
             Uncomment();
@@ -435,88 +501,112 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             AssetDatabase.Refresh();
         }
 
+        private static string GetScriptFullPath(Type t)
+        {
+            var isTypescript = _buildSettings.isTypescriptMode;
+
+            var directory =
+                $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{t.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
+            var filename = $".{t.Name}.{(isTypescript ? "ts" : "js")}";
+            var fullPath = $"{directory}{Path.DirectorySeparatorChar}{filename}";
+
+            return fullPath;
+        }
+
+        private static string GetRelativePath(string basePath, string targetPath)
+        {
+            var equalIndex = basePath.Aggregate(0, (index, ch) =>
+            {
+                if (index >= targetPath.Length || targetPath[index] != ch)
+                {
+                    return index;
+                }
+
+                return index + 1;
+            });
+
+            var equalPathLength = basePath.Substring(0, equalIndex)
+                .LastIndexOf(Path.DirectorySeparatorChar) + 1;
+            var differentEnginePath = basePath.Substring(equalPathLength,
+                basePath.Length - equalPathLength);
+            var differentClassPath =
+                targetPath.Substring(equalPathLength, targetPath.Length - equalPathLength);
+
+            var depthCount = differentEnginePath.Aggregate(0,
+                (count, ch) => count + (ch == Path.DirectorySeparatorChar ? 1 : 0));
+
+            var relativePathBuilder = new StringBuilder("./");
+            for (var i = 0; i < depthCount; ++i)
+            {
+                relativePathBuilder.Append("../");
+            }
+
+            var additionalDirectory = Path.GetDirectoryName(differentClassPath)?.Replace('\\', '/');
+            var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(differentClassPath);
+            relativePathBuilder.Append($"{additionalDirectory}/{fileNameWithoutExtension}");
+
+            return relativePathBuilder.ToString();
+        }
+
         public static void Generate()
         {
             var types = Engines
                 .Select(engine => engine.GetClass())
-                .Where(type => type != null && type.IsSubclassOf(typeof(JavascriptEngine)));
+                .Where(type => type != null && type.IsSubclassOf(typeof(JavascriptEngine)))
+                .ToArray();
 
             var boundTypesToImportPaths = new Dictionary<Type, string>();
+            var isTypescript = _buildSettings.isTypescriptMode;
 
             foreach (var type in types)
             {
                 try
                 {
-                    var temporaryInstance = Activator.CreateInstance(type) as JavascriptEngine;
-                    if (temporaryInstance == null)
+                    if (!(Activator.CreateInstance(type) is JavascriptEngine temporaryInstance))
                     {
                         continue;
                     }
 
                     var engineDirectory =
                         $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{type.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
-                    var engineFilename = $".{type.Name}.js";
+                    var engineFilename = $".{type.Name}.{(isTypescript ? "ts" : "js")}";
                     var engineFullPath = $"{engineDirectory}{Path.DirectorySeparatorChar}{engineFilename}";
 
                     {
                         var typesToBind = temporaryInstance.TypesToBind;
+                        typesToBind.Add(typeof(JavascriptEngine));
                         if (null != typesToBind)
                         {
                             var tuples = typesToBind
                                 .Where(t => t.IsClass && !boundTypesToImportPaths.ContainsKey(t))
                                 .Select(t => (t, SerializeClass(t, typesToBind)));
 
-                            foreach (var (t, javascript) in tuples)
+                            foreach (var (t, script) in tuples)
                             {
                                 var directory =
                                     $"{GeneratedHelpersPath}{Path.DirectorySeparatorChar}{t.Namespace?.Replace('.', Path.DirectorySeparatorChar)}";
-                                var filename = $".{t.Name}.js";
-                                var fullPath = $"{directory}{Path.DirectorySeparatorChar}{filename}";
 
-                                var equalIndex = engineFullPath.Aggregate(0, (index, ch) =>
-                                {
-                                    if (index >= fullPath.Length || fullPath[index] != ch)
-                                    {
-                                        return index;
-                                    }
+                                var typeFullPath = GetScriptFullPath(t);
+                                var relativePath = GetRelativePath(engineFullPath, typeFullPath);
 
-                                    return index + 1;
-                                });
+                                boundTypesToImportPaths.Add(t, relativePath);
 
-                                var equalPathLength = engineFullPath.Substring(0, equalIndex)
-                                    .LastIndexOf(Path.DirectorySeparatorChar) + 1;
-                                var differentEnginePath = engineFullPath.Substring(equalPathLength,
-                                    engineFullPath.Length - equalPathLength);
-                                var differentClassPath =
-                                    fullPath.Substring(equalPathLength, fullPath.Length - equalPathLength);
-
-                                var depthCount = differentEnginePath.Aggregate(0,
-                                    (count, ch) => count + ch == Path.DirectorySeparatorChar ? 1 : 0);
-
-                                var relativePathBuilder = new StringBuilder("./");
-                                for (var i = 0; i < depthCount; ++i)
-                                {
-                                    relativePathBuilder.Append("../");
-                                }
-
-                                relativePathBuilder.Append(differentClassPath);
-
-                                boundTypesToImportPaths.Add(t, relativePathBuilder.ToString());
-
-                                if (!File.Exists(fullPath) && !Directory.Exists(directory))
+                                if (!File.Exists(typeFullPath) && !Directory.Exists(directory))
                                 {
                                     Directory.CreateDirectory(directory);
                                 }
 
-                                File.WriteAllText(fullPath, javascript, Encoding.UTF8);
+                                File.WriteAllText(typeFullPath, script, Encoding.UTF8);
 
-                                Debug.Log($"Succeeded to create helper \"{fullPath}\"");
+                                Debug.Log($"Succeeded to create helper \"{typeFullPath}\"");
                             }
                         }
                     }
 
                     {
                         var typesToBind = temporaryInstance.TypesToBind;
+                        typesToBind.Add(temporaryInstance.GetType());
+                        typesToBind.Add(typeof(JavascriptEngine));
                         var imports = null != typesToBind
                             ? string.Join("\r\n", typesToBind
                                 .Where(boundTypesToImportPaths.ContainsKey)
@@ -558,7 +648,44 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             // class
             (t.IsClass && !t.IsSubclassOf(typeof(MonoBehaviour)) && !t.IsSubclassOf(typeof(JavascriptEngine)));
 
-        private static string TypeToPrefix(Type t) => $"{(t.IsValueType || t == typeof(string) ? t.Name.ToLower() : t.Name)}_";
+        private static string TypeToTypename(Type t)
+        {
+            // boolean
+            if (t == typeof(bool))
+            {
+                return "boolean";
+            }
+
+            // number
+            if (t == typeof(int) || t == typeof(long) || t == typeof(float) || t == typeof(double) ||
+                t == typeof(decimal))
+            {
+                return "number";
+            }
+
+            // string
+            if (t == typeof(string))
+            {
+                return "string";
+            }
+
+            // ***void*** return type only
+            if (t == typeof(void))
+            {
+                return "void";
+            }
+
+            // class
+            if (t.IsClass && !t.IsSubclassOf(typeof(MonoBehaviour)) && !t.IsSubclassOf(typeof(JavascriptEngine)))
+            {
+                return t.Name;
+            }
+
+            return string.Empty;
+        }
+
+        private static string TypeToPrefix(Type t) =>
+            $"{(t.IsValueType || t == typeof(string) ? t.Name.ToLower() : t.Name)}_";
 
         private static string SerializeClass(Type type, ICollection<Type> typesToBind)
         {
@@ -567,22 +694,53 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 return string.Empty;
             }
 
+            if (type == typeof(JavascriptEngine))
+            {
+                return "export class JavascriptEngine{}";
+            }
+
             try
             {
                 bool IsValidTypeWithBind(Type t) => IsValidType(t) || typesToBind.Contains(t);
 
+                var isTypescript = _buildSettings.isTypescriptMode;
                 var members =
                     type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                var javascript = new StringBuilder($"export class {type.Name} {{\r\n");
+                var script = new StringBuilder();
 
                 var constructorInfos =
                     type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+
+                var isBoundClass = constructorInfos.Any(constructorInfo =>
+                    constructorInfo.GetParameters().Any(parameterInfo =>
+                        parameterInfo.ParameterType == typeof(JavascriptEngine)));
+
+                if (isBoundClass)
+                {
+                    var jsEnginePath = GetScriptFullPath(typeof(JavascriptEngine));
+                    var boundClassPath = GetScriptFullPath(type);
+
+                    var relativePath = GetRelativePath(boundClassPath, jsEnginePath);
+                    script.AppendLine($"import {{{nameof(JavascriptEngine)}}} from \"{relativePath}\"\r\n");
+                }
+
+                script.AppendLine($"export class {type.Name} {{");
+
                 var constructors = constructorInfos
                     .Select(constructorInfo =>
                     {
                         var parameterInfos = constructorInfo.GetParameters();
                         var parameters = parameterInfos.Select(parameterInfo =>
-                            $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+                        {
+                            var prefix = isTypescript
+                                ? string.Empty
+                                : TypeToPrefix(parameterInfo.ParameterType);
+                            var suffix = isTypescript
+                                ? $": {TypeToTypename(parameterInfo.ParameterType)}"
+                                : string.Empty;
+
+                            return $"{prefix}{parameterInfo.Name}{suffix}";
+                        });
 
                         return $"constructor({string.Join(",", parameters)}) {{}}";
                     });
@@ -594,7 +752,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         continue;
                     }
 
-                    javascript.AppendLine(ctor);
+                    script.AppendLine(ctor);
                 }
 
                 var lines = members
@@ -613,27 +771,59 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         switch (member)
                         {
                             case PropertyInfo prop:
-                                return
-                                    $@"{prop.Name} = {(prop.PropertyType == typeof(string) ? "''" : Activator.CreateInstance(prop.PropertyType))};";
+                            {
+                                var typename = isTypescript
+                                    ? $": {TypeToTypename(prop.PropertyType)}"
+                                    : string.Empty;
 
+                                return
+                                    $@"{prop.Name}{typename} = {(prop.PropertyType == typeof(string) ? "''" : Activator.CreateInstance(prop.PropertyType))};";
+                            }
                             case MethodInfo method:
                             {
                                 var methodBuilder = new StringBuilder($@"{method.Name}(");
-                                var parameters = method.GetParameters().Select(parameterInfo =>
-                                    $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
-                                methodBuilder.Append(string.Join(",", parameters));
+                                var parameters = method.GetParameters()
+                                    .Select(parameterInfo =>
+                                    {
+                                        var prefix = isTypescript
+                                            ? string.Empty
+                                            : TypeToPrefix(parameterInfo.ParameterType);
+                                        var suffix = isTypescript
+                                            ? $": {TypeToTypename(parameterInfo.ParameterType)}"
+                                            : string.Empty;
+
+                                        return $"{prefix}{parameterInfo.Name}{suffix}";
+                                    });
+
+                                methodBuilder.Append($"{string.Join(",", parameters)})");
+
+                                var isPromise = Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
+                                                method.ReturnType == typeof(JsValue);
+
+                                if (isTypescript)
+                                {
+                                    var typename = isPromise ? "Promise<void>" : TypeToTypename(method.ReturnType);
+                                    methodBuilder.Append($": {typename}");
+                                }
 
                                 var returnValue = method.ReturnType == typeof(void)
                                     ? string.Empty
                                     : method.ReturnType.IsValueType
                                         ? Activator.CreateInstance(method.ReturnType).ToString()
-                                        : Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
-                                          method.ReturnType == typeof(JsValue)
-                                            ? $"new Promise(null)"
-                                            : $"new {method.ReturnType.Name}()";
+                                        : method.ReturnType == typeof(string)
+                                            ? @""""""
+                                            : Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
+                                              method.ReturnType == typeof(JsValue)
+                                                ? $"new Promise(null)"
+                                                : $"new {method.ReturnType.Name}()";
+
+                                if ( /*isTypescript &&*/ method.ReturnType == typeof(bool))
+                                {
+                                    returnValue = returnValue.ToLower();
+                                }
 
                                 methodBuilder.Append(
-                                    $") {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
+                                    $" {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
                                 return methodBuilder.ToString();
                             }
 
@@ -649,12 +839,12 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         continue;
                     }
 
-                    javascript.AppendLine(line);
+                    script.AppendLine(line);
                 }
 
-                javascript.AppendLine("}");
+                script.AppendLine("}");
 
-                return javascript.ToString();
+                return script.ToString();
             }
             catch (Exception e)
             {
@@ -677,23 +867,37 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                     return string.Empty;
                 }
 
+                var isTypescript = _buildSettings.isTypescriptMode;
                 var typesToBind = temporaryInstance.TypesToBind;
+                typesToBind.Add(temporaryInstance.GetType());
+                typesToBind.Add(typeof(JavascriptEngine));
                 bool IsValidTypeWithBind(Type t) => IsValidType(t) || typesToBind.Contains(t);
 
                 var members =
                     type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
                 var constructorInfos =
                     type.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-                var javascript = new StringBuilder($"class {ClassHeader}{type.Name} {{\r\n");
+
+                var extend = $" extends {nameof(JavascriptEngine)}";
+                var script = new StringBuilder($"class {ClassHeader}{type.Name}{extend} {{\r\n");
 
                 var constructors = constructorInfos
                     .Select(constructorInfo =>
                     {
                         var parameterInfos = constructorInfo.GetParameters();
                         var parameters = parameterInfos.Select(parameterInfo =>
-                            $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
+                        {
+                            var prefix = isTypescript
+                                ? string.Empty
+                                : TypeToPrefix(parameterInfo.ParameterType);
+                            var suffix = isTypescript
+                                ? $": {TypeToTypename(parameterInfo.ParameterType)}"
+                                : string.Empty;
 
-                        return $"constructor({string.Join(",", parameters)}) {{}}";
+                            return $"{prefix}{parameterInfo.Name}{suffix}";
+                        });
+
+                        return $"constructor({string.Join(",", parameters)}) {{super();}}";
                     });
 
                 foreach (var ctor in constructors)
@@ -703,7 +907,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         continue;
                     }
 
-                    javascript.AppendLine(ctor);
+                    script.AppendLine(ctor);
                 }
 
                 var lines = members
@@ -722,27 +926,64 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         switch (member)
                         {
                             case PropertyInfo prop:
-                                return
-                                    $@"{prop.Name} = {(prop.PropertyType == typeof(string) ? "''" : prop.GetValue(temporaryInstance))};";
+                            {
+                                var typename = isTypescript
+                                    ? $": {TypeToTypename(prop.PropertyType)}"
+                                    : string.Empty;
 
+                                var value = prop.GetValue(temporaryInstance)?.ToString();
+                                if ( /*isTypescript && */prop.PropertyType == typeof(bool))
+                                {
+                                    value = value.ToLower();
+                                }
+
+                                return
+                                    $@"{prop.Name}{typename} = {(prop.PropertyType == typeof(string) ? "''" : value)};";
+                            }
                             case MethodInfo method:
                             {
                                 var methodBuilder = new StringBuilder($@"{method.Name}(");
                                 var parameters = method.GetParameters().Select(parameterInfo =>
-                                    $"{TypeToPrefix(parameterInfo.ParameterType)}{parameterInfo.Name}");
-                                methodBuilder.Append(string.Join(",", parameters));
+                                {
+                                    var prefix = isTypescript
+                                        ? string.Empty
+                                        : TypeToPrefix(parameterInfo.ParameterType);
+                                    var suffix = isTypescript
+                                        ? $": {TypeToTypename(parameterInfo.ParameterType)}"
+                                        : string.Empty;
+
+                                    return $"{prefix}{parameterInfo.Name}{suffix}";
+                                });
+
+                                methodBuilder.Append($"{string.Join(",", parameters)})");
+
+                                var isPromise = Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
+                                                method.ReturnType == typeof(JsValue);
+
+                                if (isTypescript)
+                                {
+                                    var typename = isPromise ? "Promise<void>" : TypeToTypename(method.ReturnType);
+                                    methodBuilder.Append($": {typename}");
+                                }
 
                                 var returnValue = method.ReturnType == typeof(void)
                                     ? string.Empty
                                     : method.ReturnType.IsValueType
                                         ? Activator.CreateInstance(method.ReturnType).ToString()
-                                        : Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
-                                          method.ReturnType == typeof(JsValue)
-                                            ? $"new Promise(null)"
-                                            : $"new {method.ReturnType.Name}()";
+                                        : method.ReturnType == typeof(string)
+                                            ? @""""""
+                                            : Regex.IsMatch(method.Name, @"jsasync$", RegexOptions.IgnoreCase) &&
+                                              method.ReturnType == typeof(JsValue)
+                                                ? $"new Promise(null)"
+                                                : $"new {method.ReturnType.Name}()";
+
+                                if ( /*isTypescript && */method.ReturnType == typeof(bool))
+                                {
+                                    returnValue = returnValue.ToLower();
+                                }
 
                                 methodBuilder.Append(
-                                    $") {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
+                                    $" {{{(string.IsNullOrEmpty(returnValue) ? returnValue : $" return {returnValue}; ")}}}");
                                 return methodBuilder.ToString();
                             }
 
@@ -758,12 +999,12 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         continue;
                     }
 
-                    javascript.AppendLine(line);
+                    script.AppendLine(line);
                 }
 
-                javascript.AppendLine($"}}\r\n\r\nexport const window = new {ClassHeader}{type.Name}();");
+                script.AppendLine($"}}\r\n\r\nexport const {type.Name} = new {ClassHeader}{type.Name}();");
 
-                return javascript.ToString();
+                return script.ToString();
             }
             catch (Exception e)
             {
@@ -823,7 +1064,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             var windowRight = Window.position.width - 2f;
             var windowBottom = Window.position.height - 2f;
 
-            const float buildAreaRatio = 0.5f;
+            const float buildAreaRatio = 0.4f;
             const float generateAreaRatio = 1f - buildAreaRatio;
 
             var buildArea = Rect.MinMaxRect(2f, 2f, windowRight, windowBottom * buildAreaRatio - 2f);
@@ -906,6 +1147,13 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 var generatedHelpersRoot = so.FindProperty("generatedHelpersRoot");
                 EditorGUILayout.PropertyField(generatedHelpersRoot, new GUIContent("Root to generate"));
 
+                var isTypescriptMode = so.FindProperty("isTypescriptMode");
+                EditorGUILayout.PropertyField(isTypescriptMode,
+                    new GUIContent("Typescript Mode",
+                        "When activated, helpers generated as typescript instead javascript."));
+
+                EditorGUILayout.Separator();
+
                 var engines = new ReorderableList(so, so.FindProperty("engines"));
                 EditorGUILayout.PropertyField(engines.serializedProperty, new GUIContent("Engine codes"), true);
 
@@ -923,9 +1171,8 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         {
             var style = new GUIStyle("Button") { stretchHeight = true };
 
-            var isInstallationComplete = Directory.Exists(NodeModulesPath) && File.Exists(InstallerPath) &&
+            var isInstallationComplete = File.Exists(TsConfigPath) &&
                                          File.Exists(BuilderPath);
-                                         // && File.Exists(EntryPath) && File.Exists(OutputPath);
 
             var height = _rcBuildButtonArea.height * (isInstallationComplete ? 0.5f : 1f);
 
@@ -944,9 +1191,14 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                         GUI.enabled = oldEnabled;
                     }
                     else if (GUILayout.Button($"{(isInstallationComplete ? "Force install" : "Install")} npm modules",
-                        style, GUILayout.Height(height)))
+                                 style, GUILayout.Height(height)))
                     {
-                        Install();
+                        if (!isInstallationComplete && File.Exists(TsConfigPath))
+                        {
+                            return;
+                        }
+
+                        CopyAndInstall();
                     }
 
                     if (isInstallationComplete)
@@ -970,7 +1222,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 using var area = new GUILayout.AreaScope(_rcGenerateButtonArea);
 
                 if (GUILayout.Button(GUI.enabled ? "Generate" : "Set root path to generate",
-                    GUILayout.Height(_rcGenerateButtonArea.height)))
+                        GUILayout.Height(_rcGenerateButtonArea.height)))
                 {
                     Generate();
                 }

@@ -6,8 +6,15 @@ module.exports = env => {
         entry: entry,
         module: {
             rules: [
-                { test: /\.js$/, loader: 'babel-loader' }
-            ]
+                {
+                    test: /\.(?:js|ts)$/,
+                    loader: 'babel-loader',
+                    exclude: /node_modules/,
+                },
+            ],
+        },
+        resolve: {
+            extensions: ['.ts', '.js'],
         },
         output: output,
         optimization: {

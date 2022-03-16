@@ -37,7 +37,9 @@ namespace OOTL.JavascriptOnUnity.Runtime
             }
 
             // 즈언통의 window를 사용
-            Engine.SetValue("window", this);
+            var typename = GetType().Name;
+            Engine.SetValue(typename, this);
+            // Engine.SetValue("window", this);
 
             // setTimeout을 만들어줘야 다른 Promise들도 작동한다
             Engine.SetValue("setTimeout", new Action<Delegate, int>(SetTimeout));
