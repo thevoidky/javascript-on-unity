@@ -1,0 +1,26 @@
+﻿{
+    "include": [
+      "./*.ts",
+      "./*.js",
+      "./**/*.ts",
+      "./**/*.js"
+    ],
+    "exclude": [
+      "node_modules",
+      "Output"
+    ],
+    "compilerOptions": {
+      "module": "commonjs",
+      "lib": [
+        "es2015"
+      ],
+      "target": "es5",
+      "moduleResolution": "Node",
+      "rootDir": "./",
+      "sourceMap": true,
+      "removeComments": true,
+      "allowJs": true,
+      "checkJs": true,
+      "outDir": "./Output"
+    }
+  }
