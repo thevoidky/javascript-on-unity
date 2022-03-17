@@ -24,6 +24,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         private const string PackageTitle = Common.PackageTitle;
 
         private const string ClassHeader = "__class_";
+        private const string TemporaryTypescriptFolderName = "TsTemporary~";
 
 #if OOTL_DEV_LOCAL
         private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
@@ -120,6 +121,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         private static string InstallerPath => $"{RawScriptPath}/installer.sh";
         private static string TsConfigPath => $"{RawScriptPath}{Path.DirectorySeparatorChar}tsconfig.json";
         private static string BuilderPath => $"{RawScriptPath}{Path.DirectorySeparatorChar}builder.sh";
+        private static string TscRunnerPath => $"{RawScriptPath}{Path.DirectorySeparatorChar}tsc-runner.sh";
         private static string NodeModulesPath => ReplacePath($"{RawScriptPath}/node_modules");
 
         private static string RawScriptPath =>
@@ -384,45 +386,63 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             {
                 var absolutePath = AssetPathToAbsolutePath(RawScriptPath);
                 var javascripts = Directory.GetFiles(absolutePath, @"*.js", SearchOption.AllDirectories)
-                    .Where(path => !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js"));
+                    .Where(path =>
+                        !path.StartsWith(NodeModulesPath) && !path.EndsWith("webpack.config.babel.js") &&
+                        !path.Contains(TemporaryTypescriptFolderName));
+
+                var toRelative = new Regex($@"{absolutePath.Replace("\\", "\\\\")}[/\\]*", RegexOptions.Compiled);
+                var toTemporaryTypescriptPath =
+                    new Regex($@"({Regex.Escape(RawScriptPath)})", RegexOptions.Compiled);
 
                 foreach (var js in javascripts)
                 {
-                    var path = Regex.Replace(js, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
-                        $".{Path.DirectorySeparatorChar}");
-                    // var path = Regex.Replace(js, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*", $"./");
-                    rawScriptFullPaths.Add(js);
+                    var temporaryPathIfTypescript = isTypescript
+                        ? toTemporaryTypescriptPath.Replace(js,
+                            $@"$1{Path.DirectorySeparatorChar}{TemporaryTypescriptFolderName}")
+                        : js;
+                    var path = toRelative.Replace(temporaryPathIfTypescript, $".{Path.DirectorySeparatorChar}");
 
                     var directory = Path.GetDirectoryName(path);
                     var filenameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+
+                    if (filenameWithoutExtension[0] == '.')
+                    {
+                        continue;
+                    }
+
+                    rawScriptFullPaths.Add(temporaryPathIfTypescript);
                     var key = $"{directory}{Path.DirectorySeparatorChar}{filenameWithoutExtension}";
+                    key = key.Replace(TemporaryTypescriptFolderName, "");
                     rawScriptPaths[key] = path;
                 }
 
                 if (isTypescript)
                 {
                     var typescripts = Directory.GetFiles(absolutePath, @"*.ts", SearchOption.AllDirectories)
-                        .Where(path => !path.StartsWith(NodeModulesPath));
+                        .Where(path =>
+                            !path.StartsWith(NodeModulesPath) && !path.Contains(TemporaryTypescriptFolderName));
 
                     foreach (var ts in typescripts)
                     {
-                        var path = Regex.Replace(ts, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
-                            $".{Path.DirectorySeparatorChar}");
-                        // var path = Regex.Replace(ts, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*", $"./");
-                        rawScriptFullPaths.Add(ts);
+                        var temporaryPathIfTypescript = toTemporaryTypescriptPath.Replace(ts,
+                            $@"$1{Path.DirectorySeparatorChar}{TemporaryTypescriptFolderName}");
+                        temporaryPathIfTypescript = Path.ChangeExtension(temporaryPathIfTypescript, "js");
+                        var path = toRelative.Replace(temporaryPathIfTypescript, $".{Path.DirectorySeparatorChar}");
 
                         var directory = Path.GetDirectoryName(path);
                         var filenameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+
+                        if (filenameWithoutExtension[0] == '.')
+                        {
+                            continue;
+                        }
+
+                        rawScriptFullPaths.Add(temporaryPathIfTypescript);
                         var key = $"{directory}{Path.DirectorySeparatorChar}{filenameWithoutExtension}";
+                        key = key.Replace(TemporaryTypescriptFolderName, "");
                         rawScriptPaths[key] = path;
                     }
                 }
-
-                // var rawScriptPaths =
-                //     rawScriptFullPaths
-                //         .Select(path => Regex.Replace(path, $@"{absolutePath.Replace("\\", "\\\\")}[/\\]*",
-                //             $".{Path.DirectorySeparatorChar}"))
-                //         .ToArray();
 
                 var builtScriptRoot = AssetDatabase.GetAssetPath(_buildSettings.builtScriptsRoot);
 
@@ -431,11 +451,57 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 var outputContent = JsonConvert.SerializeObject(output);
                 File.WriteAllText(OutputPath, outputContent);
 
-                // var entry = rawScriptPaths.ToDictionary(scriptPath => Regex.Replace(scriptPath, @".(js|ts)$", ""));
                 var entry = rawScriptPaths;
-
                 var entryContent = JsonConvert.SerializeObject(entry);
                 File.WriteAllText(EntryPath, entryContent, Encoding.UTF8);
+            }
+
+            void RunTsc()
+            {
+                var match = Regex.Match(RawScriptPath, @"([a-zA-Z]):?[\\/](.*)");
+                var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
+                var workspace = PathReplacer
+                    .Replace(match.Success ? match.Groups[2].Value : RawScriptPath,
+                        $"{Path.DirectorySeparatorChar}")
+                    .Replace(":", "");
+
+                workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
+                var parameters = $"'{workspace}' {drive}";
+
+                var process = Process.Start(TscRunnerPath, parameters);
+                if (process == null)
+                {
+                    Debug.LogError($"Failed to start a process.\nPath: {TscRunnerPath}\nArguments: {parameters})");
+                    return;
+                }
+
+                // Wait for an hour as limit
+                process.WaitForExit(3600000);
+            }
+
+            void RunBuilder()
+            {
+                var match = Regex.Match(RawScriptPath, @"([a-zA-Z]):?[\\/](.*)");
+                var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
+                var workspace = PathReplacer
+                    .Replace(match.Success ? match.Groups[2].Value : RawScriptPath,
+                        $"{Path.DirectorySeparatorChar}")
+                    .Replace(":", "");
+
+                var isDevBuild = _buildSettings.isDevBuild;
+
+                workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
+                var parameters = $"'{workspace}' {drive} {isDevBuild}";
+
+                var process = Process.Start(BuilderPath, parameters);
+                if (process == null)
+                {
+                    Debug.LogError($"Failed to start a process.\nPath: {BuilderPath}\nArguments: {parameters})");
+                    return;
+                }
+
+                // Wait for an hour as limit
+                process.WaitForExit(3600000);
             }
 
             void Comment()
@@ -472,31 +538,22 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             }
 
             GenerateMetadata();
-            Comment();
 
-            var match = Regex.Match(RawScriptPath, @"([a-zA-Z]):?[\\/](.*)");
-            var drive = $"/{(match.Success ? match.Groups[1].Value : string.Empty)}";
-            var workspace = PathReplacer
-                .Replace(match.Success ? match.Groups[2].Value : RawScriptPath,
-                    $"{Path.DirectorySeparatorChar}")
-                .Replace(":", "");
-
-            var isDevBuild = _buildSettings.isDevBuild;
-
-            workspace = workspace.Replace('\\', '/').Replace(" ", "\\ ");
-            var parameters = $"'{workspace}' {drive} {isDevBuild}";
-
-            var process = Process.Start(BuilderPath, parameters);
-            if (process == null)
+            if (isTypescript)
             {
-                Debug.LogError($"Failed to start a process.\nPath: {BuilderPath}\nArguments: {parameters})");
-                return;
+                RunTsc();
             }
 
-            // Wait for an hour as limit
-            process.WaitForExit(3600000);
+            Comment();
 
+            RunBuilder();
             Uncomment();
+
+            var tempDirectory = $"{RawScriptPath}{Path.DirectorySeparatorChar}{TemporaryTypescriptFolderName}";
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, true);
+            }
 
             AssetDatabase.Refresh();
         }

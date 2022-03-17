@@ -1,15 +1,12 @@
 ﻿{
-  "include": [
-    "./*.ts",
-    "./*.js",
-    "./**/*.ts",
-    "./**/*.js"
-  ],
   "exclude": [
-    "node_modules",
+    "**/node_modules",
     "webpack.config.*.js",
     "entry.json",
-    "output.json"
+    "output.json",
+    "TsTemporary~/",
+    "**/.*.js",
+    "**/.*.ts"
   ],
   "compilerOptions": {
     "module": "ES2015",
@@ -19,7 +16,7 @@
     ],
     "moduleResolution": "Node",
     "rootDir": "./",
-    "outDir": "./TsOutput/",
+    "outDir": "TsTemporary~/",
     "resolveJsonModule": true,
     "sourceMap": false,
     "removeComments": true,
