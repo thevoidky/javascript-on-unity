@@ -145,7 +145,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             _generateInspectorPosition,
             _generateButtonPosition;
 
-        private Rect _rcBuildInspectorArea, _rcGenerateInspectorArea;
+        private Rect _rcGlobalInspectorArea, _rcBuildInspectorArea, _rcGenerateInspectorArea;
         private Rect _rcBuildButtonArea, _rcGenerateButtonArea;
 
         public static DefaultAsset RawScriptRoot
@@ -1034,6 +1034,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
                 return;
             }
 
+            DrawGlobalPanel();
             DrawBuildPanel();
             DrawGeneratePanel();
         }
@@ -1061,24 +1062,38 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 
         private void ResetArea()
         {
+            const float globalAreaHeight = 50f;
+
             var windowRight = Window.position.width - 2f;
             var windowBottom = Window.position.height - 2f;
 
-            const float buildAreaRatio = 0.4f;
-            const float generateAreaRatio = 1f - buildAreaRatio;
+            var globalAreaRatio = Mathf.InverseLerp(0f, windowBottom, globalAreaHeight - 2f);
+            var buildAreaRatio = globalAreaRatio + 0.4f;
+            var generateAreaRatio = 1f - buildAreaRatio;
 
-            var buildArea = Rect.MinMaxRect(2f, 2f, windowRight, windowBottom * buildAreaRatio - 2f);
+            var globalArea = Rect.MinMaxRect(2f, 2f, windowRight, windowBottom * globalAreaRatio);
+
+            var buildArea = Rect.MinMaxRect(2f, globalArea.yMax + 2f, windowRight, windowBottom * buildAreaRatio - 2f);
             var generateArea = Rect.MinMaxRect(buildArea.xMin, buildArea.yMax + 2f, windowRight, windowBottom);
 
-            _rcBuildInspectorArea =
-                Rect.MinMaxRect(buildArea.xMin, buildArea.yMin, buildArea.xMax, buildArea.yMax - 60f);
-            _rcBuildButtonArea =
-                Rect.MinMaxRect(buildArea.xMin, _rcBuildInspectorArea.yMax, buildArea.xMax, buildArea.yMax);
+            _rcGlobalInspectorArea =
+                Rect.MinMaxRect(globalArea.xMin, globalArea.yMin, globalArea.xMax, globalArea.yMax);
 
-            _rcGenerateInspectorArea = Rect.MinMaxRect(generateArea.xMin, generateArea.yMin, generateArea.xMax,
-                generateArea.yMax - 40f);
-            _rcGenerateButtonArea = Rect.MinMaxRect(generateArea.xMin, _rcGenerateInspectorArea.yMax, generateArea.xMax,
-                generateArea.yMax);
+            _rcBuildInspectorArea = Rect.MinMaxRect(
+                buildArea.xMin, buildArea.yMin, globalArea.xMax, Mathf.Max(buildArea.yMin, buildArea.yMax - 60f));
+            _rcBuildButtonArea = Rect.MinMaxRect(
+                buildArea.xMin, _rcBuildInspectorArea.yMax, _rcBuildInspectorArea.xMax, buildArea.yMax);
+
+            _rcGenerateInspectorArea = Rect.MinMaxRect(
+                generateArea.xMin, generateArea.yMin, generateArea.xMax,
+                Mathf.Max(generateArea.yMin, generateArea.yMax - 40f));
+            _rcGenerateButtonArea =
+                Rect.MinMaxRect(generateArea.xMin, _rcGenerateInspectorArea.yMax, generateArea.xMax, generateArea.yMax);
+        }
+
+        private void DrawGlobalPanel()
+        {
+            DrawGlobalInspector();
         }
 
         private void DrawBuildPanel()
@@ -1091,6 +1106,31 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         {
             DrawGenerateInspector();
             DrawGenerateButtons();
+        }
+
+        private void DrawGlobalInspector()
+        {
+            var oldIndentLevel = EditorGUI.indentLevel;
+            try
+            {
+                using var area = new GUILayout.AreaScope(_rcGlobalInspectorArea);
+
+                EditorGUILayout.LabelField("Global Options");
+                ++EditorGUI.indentLevel;
+
+                var so = new SerializedObject(_buildSettings);
+
+                var isTypescriptMode = so.FindProperty("isTypescriptMode");
+                EditorGUILayout.PropertyField(isTypescriptMode,
+                    new GUIContent("Typescript Mode",
+                        "When activated, helpers generated as typescript instead javascript."));
+
+                so.ApplyModifiedProperties();
+            }
+            finally
+            {
+                EditorGUI.indentLevel = oldIndentLevel;
+            }
         }
 
         private void DrawBuildInspector()
@@ -1146,11 +1186,6 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 
                 var generatedHelpersRoot = so.FindProperty("generatedHelpersRoot");
                 EditorGUILayout.PropertyField(generatedHelpersRoot, new GUIContent("Root to generate"));
-
-                var isTypescriptMode = so.FindProperty("isTypescriptMode");
-                EditorGUILayout.PropertyField(isTypescriptMode,
-                    new GUIContent("Typescript Mode",
-                        "When activated, helpers generated as typescript instead javascript."));
 
                 EditorGUILayout.Separator();
 

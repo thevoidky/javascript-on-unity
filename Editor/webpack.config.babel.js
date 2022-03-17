@@ -1,9 +1,6 @@
-﻿import entry from './entry';
-import output from './output';
-
-module.exports = env => {
+﻿module.exports = env => {
     return {
-        entry: entry,
+        entry: require('./entry.json'),
         module: {
             rules: [
                 {
@@ -16,9 +13,9 @@ module.exports = env => {
         resolve: {
             extensions: ['.ts', '.js'],
         },
-        output: output,
+        output: require('./output.json'),
         optimization: {
             minimize: env != 'dev'
-        }
+        },
     };
 };
