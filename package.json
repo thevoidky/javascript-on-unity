@@ -1,8 +1,8 @@
 {
   "name": "com.ootl.jsou",
-  "version": "0.1.0-dev",
+  "version": "0.2.0-dev",
   "displayName": "Javascript on Unity",
-  "description": "Provide to bind javascripts to Unity.",
+  "description": "Provide to bind JavaScripts or TypeScripts to Unity.",
   "unity": "2021.2",
   "dependencies": {
     "com.unity.test-framework": "1.1.27"
@@ -17,7 +17,9 @@
   "keywords": [
     "ootl",
     "javascript",
+    "typescript",
     "js",
+    "ts",
     "interpreter",
     "unity",
     "upm"
