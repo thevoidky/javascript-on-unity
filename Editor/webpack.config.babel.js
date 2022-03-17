@@ -4,14 +4,14 @@
         module: {
             rules: [
                 {
-                    test: /\.(?:js|ts)$/,
+                    test: /\.js$/,
                     loader: 'babel-loader',
                     exclude: /node_modules/,
                 },
             ],
         },
         resolve: {
-            extensions: ['.ts', '.js'],
+            extensions: ['.js'],
         },
         output: require('./output.json'),
         optimization: {
