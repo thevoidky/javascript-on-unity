@@ -13,6 +13,7 @@ namespace OOTL.JavascriptOnUnity.Editor
         public bool isDevBuild = true;
 
         public DefaultAsset generatedHelpersRoot;
+        public bool cleanExistingHelpers = true;
         public MonoScript[] engines;
     }
 }

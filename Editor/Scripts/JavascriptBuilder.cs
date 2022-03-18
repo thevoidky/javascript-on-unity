@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -605,6 +606,62 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             return relativePathBuilder.ToString();
         }
 
+        private static void CleanEmptyDirectories(string rootDirectory)
+        {
+            if (rootDirectory.EndsWith("node_modules"))
+            {
+                return;
+            }
+
+            var directories = Directory.GetDirectories(rootDirectory, "*", SearchOption.TopDirectoryOnly);
+
+            Func<string, bool> isEmptyDirectory = null;
+            isEmptyDirectory = directory =>
+            {
+                var isEmpty = Directory.GetFiles(directory, "*", SearchOption.TopDirectoryOnly)
+                    .Count(filename => !filename.EndsWith(".meta")) == 0;
+
+                return isEmpty
+                    ? Directory.GetDirectories(directory, "*", SearchOption.TopDirectoryOnly)
+                        .All(isEmptyDirectory)
+                    : false;
+            };
+
+            foreach (var directory in directories)
+            {
+                if (!isEmptyDirectory(directory))
+                {
+                    CleanEmptyDirectories(directory);
+                    continue;
+                }
+
+                Debug.Log($"Try to delete a directory \"{directory}\"");
+                Directory.Delete(directory, true);
+
+                var metaName = $"{directory}.meta";
+                if (File.Exists(metaName))
+                {
+                    File.Delete(metaName);
+                }
+            }
+        }
+
+        private static void CleanOldHelpers()
+        {
+            var helpers = Directory.GetFiles(GeneratedHelpersPath, ".*", SearchOption.AllDirectories)
+                .Where(filename => !filename.Contains("node_modules") &&
+                                   (filename.EndsWith(".js", true, CultureInfo.CurrentCulture) ||
+                                    filename.EndsWith(".ts", true, CultureInfo.CurrentCulture)));
+
+            foreach (var helper in helpers)
+            {
+                File.Delete(helper);
+                Debug.Log($"Try to delete helper \"{helper}\"");
+            }
+
+            CleanEmptyDirectories(GeneratedHelpersPath);
+        }
+
         public static void Generate()
         {
             var types = Engines
@@ -614,6 +671,12 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 
             var boundTypesToImportPaths = new Dictionary<Type, string>();
             var isTypescript = _buildSettings.isTypescriptMode;
+
+            if (_buildSettings.cleanExistingHelpers)
+            {
+                CleanOldHelpers();
+                AssetDatabase.Refresh();
+            }
 
             foreach (var type in types)
             {
@@ -655,7 +718,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 
                                 File.WriteAllText(typeFullPath, script, Encoding.UTF8);
 
-                                Debug.Log($"Succeeded to create helper \"{typeFullPath}\"");
+                                Debug.Log($"Succeeded to create a helper \"{typeFullPath}\"");
                             }
                         }
                     }
@@ -1243,6 +1306,10 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 
                 var generatedHelpersRoot = so.FindProperty("generatedHelpersRoot");
                 EditorGUILayout.PropertyField(generatedHelpersRoot, new GUIContent("Root to generate"));
+
+                var cleanExistingHelpers = so.FindProperty("cleanExistingHelpers");
+                EditorGUILayout.PropertyField(cleanExistingHelpers,
+                    new GUIContent("Clean root", "Set this value true to clean old helpers in root."));
 
                 EditorGUILayout.Separator();
 
