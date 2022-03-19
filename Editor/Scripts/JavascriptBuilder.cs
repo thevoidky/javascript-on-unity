@@ -27,6 +27,8 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         private const string ClassHeader = "__class_";
         private const string TemporaryTypescriptFolderName = "TsTemporary~";
 
+        private const string SettingsFilename = "JsouBuilderSettings";
+
 #if OOTL_DEV_LOCAL
         private const string RootPath = "Assets/Modules/javascript-on-unity/Editor";
 #else
@@ -88,8 +90,9 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 
         private static string LocalAssetsPath => $"Assets/{PackageTitle}";
         private static string LocalAssetFullPath => $"{ProjectPath}/{LocalAssetsPath}";
-        private static string SettingsAssetPath => $"{LocalAssetsPath}/Editor/Build Settings.asset";
-        private static string SettingsFullPath => $"{LocalAssetFullPath}/Editor/Build Settings.asset";
+
+        private static string DefaultSettingsAssetPath =>
+            $"{LocalAssetsPath}/Editor/Resources/{SettingsFilename}.asset";
 
 #if OOTL_DEV_LOCAL
         private static string Workspace => $"{ProjectPath}/{RootPath}";
@@ -1149,7 +1152,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
             {
                 var oldColor = GUI.color;
                 GUI.color = Color.red;
-                EditorGUILayout.LabelField("\"Build Settings\" is not exist.");
+                EditorGUILayout.LabelField($"\"{SettingsFilename}\" is not exist.");
                 GUI.color = oldColor;
                 return;
             }
@@ -1163,21 +1166,33 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         {
             ResetArea();
 
-            if (null == _buildSettings)
+            if (null != _buildSettings)
             {
-                if (!File.Exists(SettingsFullPath))
-                {
-                    Directory.CreateDirectory(LocalAssetsPath + "/Editor");
-
-                    var asset = CreateInstance<BuildSettings>();
-                    var assetName = AssetDatabase.GenerateUniqueAssetPath(SettingsAssetPath);
-                    AssetDatabase.CreateAsset(asset, assetName);
-                    AssetDatabase.SaveAssets();
-                    AssetDatabase.Refresh();
-                }
-
-                _buildSettings = AssetDatabase.LoadAssetAtPath<BuildSettings>(SettingsAssetPath);
+                return;
             }
+
+            _buildSettings = Resources.Load<BuildSettings>(SettingsFilename);
+
+            if (_buildSettings != null)
+            {
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(DefaultSettingsAssetPath);
+            if (string.IsNullOrEmpty(directory))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(directory);
+
+            var asset = CreateInstance<BuildSettings>();
+            var assetName = AssetDatabase.GenerateUniqueAssetPath(DefaultSettingsAssetPath);
+            AssetDatabase.CreateAsset(asset, assetName);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            _buildSettings = Resources.Load<BuildSettings>(SettingsFilename);
         }
 
         private void ResetArea()
