@@ -1,6 +1,4 @@
-﻿#define OOTL_DEV_LOCAL
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -131,7 +129,7 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
         private static string RawScriptPath =>
             !RawScriptRoot
                 ? string.Empty
-                : ReplacePath($"{ProjectPath}{Path.DirectorySeparatorChar}{AssetDatabase.GetAssetPath(RawScriptRoot)}");
+                : Path.GetFullPath(AssetDatabase.GetAssetPath(RawScriptRoot));
 
         private static string GeneratedHelpersPath =>
             !GeneratedHelpersRoot
