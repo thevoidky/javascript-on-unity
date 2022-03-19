@@ -109,10 +109,12 @@ namespace OOTL.JavascriptOnUnity.Editor.Scripts
 #else
         private static string SourceInstallerPath => $"{RootFullPath}/installer.sh";
         private static string SourceBuilderPath => $"{RootFullPath}/builder.sh";
+        private static string SourceTscRunnerPath => $"{RootFullPath}/tsc-runner.sh";
         private static IEnumerable<string> FilesToCopy => new[]
         {
             SourceInstallerPath,
             SourceBuilderPath,
+            SourceTscRunnerPath,
             $"{RootFullPath}/package.json",
             $"{RootFullPath}/package-lock.json",
             $"{RootFullPath}/webpack.config.babel.js",
